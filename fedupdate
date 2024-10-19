@@ -1,0 +1,770 @@
+#!/bin/bash
+ver=1.1
+# Convention : les variables en minuscules, les fonctions en majuscules.
+# Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
+#################################################
+# Copyright OLIVIER LORILLU                     #
+# ce script est sous license GPL                #
+# https://www.gnu.org/licenses/gpl.html         #
+#################################################
+set -u -o pipefail
+cmdline="$*" 				# arguments de la ligne de commande
+scriptfullname="$0" 		# chemin complet du script
+scriptname="${0##*/}" 		# équivalent à basename $0, mais en pur bash.
+declare -i spinner_pid=1	# initialisation de la variable qui va contenir le PID pour tuer le spinner (cf START/STOP-SPINNER).
+
+################################################################################################################################
+#                   SOUS-ROUTINES DU SCRIPT                                                                                    #
+################################################################################################################################
+EXISTS() {
+	unalias "$1" >/dev/null 2>&1
+	command -v "$1" >/dev/null 2>&1
+}
+################################################################################################################################
+CECHO() { # script to write something to stdout in colors
+   	local message=$1
+   	local color=$2
+   	local nonewline=$3
+   	if [ "$terminal" != "dumb" ]; then
+  		echo -e "$nonewline" "$color$message$reinit"
+   	else
+  		echo "$nonewline" "$message"
+   	fi
+   	return 0
+}
+################################################################################################################################
+HOSTNAME() {
+	host=$(/usr/bin/hostnamectl --transient 2>/dev/null) || \
+	host=$(/usr/bin/hostname 2>/dev/null) || \
+	host=$(/usr/bin/uname -n 2>/dev/null) || \
+	host="unknown"
+	return 0
+}
+################################################################################################################################
+INITCOLOR() {
+	if [ "$terminal" = "dumb" ] || [ "$terminal" = "" ]; then
+		TERM="xterm"
+		noir=''
+		rouge=''
+		vert=''
+		jaune=''
+		bleu=''
+		magenta=''
+		cyan=''
+		blanc=''
+		gras=''
+		underline=''
+		italic=''
+		reinit=''
+		GREP_COLORS=''
+	else
+		export noir='\e[30m'
+		export rouge='\e[31m'
+		export vert='\e[32m'
+		export jaune='\e[33m'
+		export cyan='\e[36m'
+		export magenta='\e[35m'
+		export bleu='\e[34m'
+		export blanc='\e[37m'
+		export gras='\e[1m'
+		export underline='\e[4m'
+		export italic='\e[3m'
+		export reinit='\e[0m'
+		export GREP_COLORS='mt=1;34'
+	fi
+	return 0
+}
+################################################################################################################################
+CREATE-CONFIG() {
+	if ASK-YESNO "" "$vert" " Voulez-vous en définir un maintenant (oui/non) ? " "$magenta" ""; then
+		while true; do
+			CECHO "[ACT.]" "$magenta" -n && echo -n " Merci de saisir une adresse email valide : "
+			IFS= read -r email
+			if IS-VALID-EMAIL "$email"; then
+				echo "email=\"${email}\"" > "$config"
+				break
+			fi
+		done
+		CECHO "[ACT.]" "$magenta" -n && echo -n " Merci de saisir le mot de passe de l'utilisateur $(whoami) : "
+		IFS= read -r password
+		echo "password=\"${password}\"" >> "$config"
+		CECHO "[INFO]" "$vert" -n && echo -e " Fichier ${gras}${bleu}$config${reinit} crée :"
+		$bat "$config"
+	else
+		CECHO "[INFO]" "$vert" -n && echo -e " Création du fichier ${gras}${bleu}$config${reinit} refusée par l'utilisateur."
+	fi
+}
+################################################################################################################################
+CHECK-DEPENDENCIES() {
+	local cmdmissing="no"
+	local cmd=""
+	[ "$checkdeps" = "yes" ] && { echo ; PRINTBANNER-CENTERED "" "." "$cyan" ; }
+	list2check=("bash" "sudo" "awk" "sed" "tput" "find" "notify-send" "dnf")
+	for cmd in "${list2check[@]}"; do
+		if ! EXISTS "$cmd" ; then
+			CECHO "[ERR.]" "$rouge" -n && echo " La commande $cmd est manquante, veuillez l'installer."
+			cmdmissing="yes"
+		fi
+	done
+	if [ "$checkdeps" = "yes" ] ; then
+		if [ -f "$config" ]; then
+			CECHO "[INFO]" "$vert" -n && echo -e " Contenu du fichier ${gras}${bleu}$config${reinit} :"
+			$bat "$config"
+			CREATE-CONFIG
+		else
+			CECHO "[INFO]" "$vert" -n && echo -ne " Fichier de configuration ${gras}${bleu}$config${reinit} manquant."
+			CREATE-CONFIG
+		fi
+	fi
+	if [ "$cmdmissing" = "yes" ]||[ "$checkdeps" = "yes" ] ; then
+		echo
+		[ "$cmdmissing" = "yes" ] && { CECHO "[WARN]" "$jaune" -n ; echo -e " Voici la liste des ${gras}${jaune}paquets requis${reinit} pour que ce script fonctionne :" ;} \
+		                          || { CECHO "[INFO]" "$vert" -n ; echo -e " Voici la liste des ${gras}${jaune}paquets requis${reinit} pour que ce script fonctionne :" ;}
+		echo -e "	${gras}${bleu}bash${reinit}, ${gras}${bleu}coreutils${reinit}, ${gras}${bleu}dnf${reinit} (v4), ${gras}${bleu}findutils${reinit}, ${gras}${bleu}gawk${reinit}, ${gras}${bleu}libnotify${reinit}, ${gras}${bleu}ncurses${reinit}, ${gras}${bleu}sed${reinit} et ${gras}${bleu}sudo${reinit}."
+		CECHO "[INFO]" "$vert" -n && echo -e " Voici la liste des ${gras}${jaune}paquets requis trouvés${reinit} sur ${gras}$host${reinit} :"
+		$dnf list --installed | grep --color -E '^(bash|coreutils|dnf|findutils|gawk|libnotify|ncurses|sed|sudo)\.'
+		echo
+		CECHO "[INFO]" "$vert" -n && echo -e " Voici la liste des ${gras}${jaune}paquets optionnels${reinit} :"
+		echo -e "	${gras}${bleu}s-nail${reinit}, ${gras}${bleu}msmtp${reinit} (ou ${gras}${bleu}opensmtpd${reinit}) et ${gras}${bleu}flatpak${reinit}."
+		CECHO "[INFO]" "$vert" -n && echo -e " Voici la liste des ${gras}${jaune}paquets optionnels trouvés${reinit} sur ${gras}$host${reinit} :"
+		$dnf list --installed | grep --color -E '^(s-nail|msmtp|opensmtpd|flatpak)\.'
+		[ $cmdmissing = "yes" ] && { THE-END "des erreurs" ; exit 1 ;}
+		[ $checkdeps = "yes" ] && { THE-END "succès" ; exit 0 ;}
+	else
+		return 0
+	fi
+}
+################################################################################################################################
+UNALIAS() { # on desalias les commandes utilisées pour éviter un comportement imprévu
+	local cmd=""
+	list2check=("unalias" "mkdir" "printf" "mail" "touch" "sleep" "rm" "cat" "bat" "sed" "head" "awk" "echo" "dnf" \
+	"tput" "notify-send" "sudo" "read" "date" "flatpak" "trap" "command" "dbus-send" "source" "getopts" "ls" "stat" "tee")
+
+	for cmd in "${list2check[@]}"; do
+		unalias "$cmd" >/dev/null 2>&1
+	done
+	return 0
+}
+################################################################################################################################
+SUDOPASS() {
+    if [ "$terminal" = "dumb" ]; then
+        echo "$password" | sudo -S echo -n
+	else
+	    if ! sudo -n true 2>/dev/null; then
+		    CECHO "[ACT.]" "$magenta" -n && sudo -p " Veuillez saisir le mot de passe de l'utilisateur $(whoami) (sudo) : " -S echo -n
+		fi
+	fi
+	return 0
+}
+################################################################################################################################
+COMPTEUR() {
+    local duree="$1"
+    local largeur="$2"
+    local message_fin="$3"
+    local couleur_pleine="$4"
+    local couleur_vide="$5"
+    local couleur_message="$6"
+    local couleur_fin="$7"
+    local remplissage
+    local bar
+    local barfin
+    local vide
+    local temps_restant
+    local temps_restant_formate
+    local pourcentage
+    local i
+
+	for ((i=0; i<=duree; i++)); do
+        remplissage=$(( i * largeur / duree ))
+        bar=$(printf "%-${largeur}s" "" | sed "s/ /░/g")
+        barfin=$(printf "%-${largeur}s" "" | sed "s/ /█/g")
+        vide=$(printf "%-${largeur}s" "" | sed "s/ /░/g")
+        temps_restant=$(( duree - i ))
+        temps_restant_formate=$(printf "%2d" "$temps_restant")
+        pourcentage=$(( i * 100 / duree ))
+        if (( i == duree )); then
+            echo -ne "\r ${couleur_fin}${barfin:0:remplissage}${vide:remplissage}${reinit} 100% ${couleur_message}${message_fin}${reinit}"
+        else
+            echo -ne "\r ${couleur_pleine}${bar:0:remplissage}${couleur_vide}${vide:remplissage}${reinit} ${pourcentage}% ${temps_restant_formate}s"
+        fi
+        sleep 1
+    done
+    echo
+	return 0
+}
+################################################################################################################################
+IS-VALID-EMAIL() {
+    local localmail="$1"
+    if [[ "$localmail" =~ ^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$ ]]; then
+        return 0  # Email valide
+    else
+        return 1  # Email non valide
+    fi
+}
+################################################################################################################################
+PRINTBANNER-CENTERED() {
+	local msg="$1"
+	local fillertype="$2"
+	local color="$3"
+	[[ $# == 0 ]] && return 1
+	declare -i term_cols # largeur du terminal
+	if [ "$terminal" = "dumb" ]; then
+		term_cols=135
+	else
+		term_cols="$(tput cols)"
+		echo -e -n "$color"
+	fi
+	declare -i str_len="${#msg}" # length of $msg
+	[[ $str_len -ge $term_cols ]] && {
+		echo "$msg";
+		return 0;
+	}
+	declare -i filler_len="$(( (term_cols - str_len) / 2 ))"
+	local ch=""
+	[[ $# -ge 2 ]] && ch="${fillertype:0:1}" || ch=" "
+	local filler=""
+	for (( i = 0; i < filler_len; i++ )); do
+		filler="${filler}${ch}"
+	done
+	"printf" "%s%s%s" "$filler" "$msg" "$filler"
+	[[ $(( (term_cols - str_len) % 2 )) -ne 0 ]] && printf "%s" "${ch}"
+	"printf" "\n"
+	return 0
+}
+################################################################################################################################
+CLEAR() { # fonction pour effacer le terminal en préservant le scrollback.
+	local h
+	h="$(tput lines 2>/dev/null)"
+	# shellcheck disable=SC2181
+	if [ "$?" -eq 0 ]; then
+		until [ "$h" -le 1 ]; do
+			printf '\n'
+			h=$((h-1))
+		done
+	fi
+	command clear -x
+	return 0
+}
+################################################################################################################################
+ASK-YESNO() {
+#   1. Messsage introductif
+#   2. Couleur du type de message introduction : par exemple vert pour [INFO]
+#   3. Question à laquelle l utilisateur devra répondre
+#   4. Couleur du type accompagnant la question ([ACT.] est le type forcé, pour ACTION).
+#   5. Type du message introductif : par exemple [INFO]
+# ===>   la fonction retourne le code 0 si la réponse est oui, 1 si non.
+	if [ "$terminal" != "dumb" ]; then # le script n'est pas lancé en arrière plan
+		local message="$1"
+		local color1="$2"
+		local question="$3"
+		local color2="$4"
+		local type="$5"
+		local input_string="NA"
+		CECHO "$type" "$color1" -n && echo "$message"
+		while [ "$input_string" != "oui" ] && [ "$input_string" != "non" ]; do
+			CECHO "[ACT.]" "$color2" -n && echo -n "$question"
+			IFS= read -r input_string
+			input_string="${input_string,,}" # je passe tout en minuscules
+		done
+		if [ "$input_string" = "oui" ]; then
+			return 0
+		elif [ "$input_string" = "non" ]; then
+			return 1
+		fi
+	else # le script est lancé en arrière plan, la réponse par défaut est non.
+		return 1
+	fi
+}
+################################################################################################################################
+DATE-ET-HEURE() {
+	echo -e "${italic}$(\date '+%T'), le $(\date '+%A %d %B %Y')${reinit}"
+	return 0
+}
+################################################################################################################################
+START-SPINNER() {
+if [ "$terminal" != "dumb" ]; then
+    set +m
+    tput civis
+    echo -ne "en cours...  ${rouge})"
+    local frames=('⠋' '⠙' '⠹' '⠸' '⠼' '⠴' '⠦' '⠧' '⠇' '⠏')
+    local index=""
+    { while : ; do for index in "${frames[@]}" ; do echo -en "\b$index" ; sleep 0.05 ; done ; done & } 2>/dev/null
+    spinner_pid=$!
+    return 0
+fi
+}
+################################################################################################################################
+STOP-SPINNER() {
+if [ "$terminal" != "dumb" ]; then
+	{ kill -9 $spinner_pid && wait; } 2>/dev/null
+    set -m
+	echo -en "\b\b"
+	tput cvvis
+	echo -ne "$reinit"
+	return 0
+fi
+}
+################################################################################################################################
+USAGE() {
+	CECHO "[INFO]" "$vert" -n && \
+	echo -e " utilisation: ${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0]${reinit}"
+	return 0
+}
+################################################################################################################################
+DISPLAY-HELP() {
+    echo
+	PRINTBANNER-CENTERED "AIDE" "." "$cyan"
+	echo -ne "$reinit"
+	cat <<< "$(echo -e "${bleu}${underline}UTILISATION${reinit}
+	${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0]${reinit}
+
+${bleu}${underline}DESCRIPTION${reinit}
+	Ce script vérifie si les paquets ${jaune}RPMs${reinit}, et éventuellement ${jaune}FLATPAKs${reinit}, de votre ${jaune}${ID^}${reinit} (${gras}$host${reinit}) nécessitent ${gras}une mise à jour${reinit}.
+	Si des nouveaux paquets ${jaune}FLATPAKs${reinit} sont disponibles, ${gras}il procède à la mise à jour immédiatement${reinit}.
+	Si des paquets ${jaune}RPMs${reinit} sont disponibles, ${gras}il les télécharge puis redémarre le système pour une mise à jour hors-ligne (plus sûre)${reinit}.
+	Le script utilise seulement des commandes ${gras}${bleu}dnf${reinit} et, éventuellement, ${gras}${bleu}flatpak${reinit} (PackageKit non-requis).
+	Les erreurs de vérifications et de téléchargements sont gérées.
+	Le script doit être lancé par un ${gras}utilisateur normal${reinit} disposant du droit d'élévation de privilège (${gras}${bleu}sudo${reinit}).
+
+${bleu}${underline}OPTIONS${reinit}
+        ${vert}-h   ${reinit}affiche cette ${jaune}aide${reinit} et quitte,
+        ${vert}-C   ${reinit}affiche et vérifie la présence des dépendances puis quitte ($modeCC),
+        ${vert}-s   ${reinit}avec cette option, seules les erreurs et la liste de paquets seront affichées ($modeS),
+        ${vert}-c   ${reinit}avec cette option, le script ne fera que vérifier si des mises à jour sont disponibles ($modeC),
+        ${vert}-m   ${reinit}avec cette option, le script envoie un email si des mises à jour sont disponibles ($modeM),
+        ${vert}-n   ${reinit}avec cette option, le script envoie une notification système si des mises à jour sont disponibles ($modeN),
+        ${vert}-F   ${reinit}avec cette option, la gestion des ${jaune}FLATPAKs${reinit} est désactivée ($modeF),
+        ${vert}-R   ${reinit}avec cette option, la gestion des ${jaune}RPMs${reinit} est désactivée ($modeR),
+        ${vert}-d   ${reinit}avec cette option (${gras}non recommandée${reinit}), la mise à jour des ${jaune}RPMs${reinit} sera directe, c'est-à-dire en ligne ($modeD),
+        ${vert}-B   ${reinit}avec cette option (${gras}non recommandée${reinit}), le script ne fera pas de mise à jour forcée du cache de ${gras}${bleu}dnf${reinit} ($modeB),
+        ${vert}-0   ${reinit}avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script ($mode0).
+
+${bleu}${underline}NOTES${reinit}
+	- Le $modeM (${vert}-m${reinit}) et le $modeN (${vert}-n${reinit}) ne sont appliqués qu'en $modeC (${vert}-c${reinit}). Ils sont ignorés sinon.
+	- Le $modeM (${vert}-m${reinit}) n'est appliqué que si le script est lancé en arrière plan (via une tâche cron ou une unité systemd).
+	- Le $modeM (${vert}-m${reinit}) nécessite la commande ${gras}${bleu}mail${reinit} et un MTA configuré (Mail Transport Agent, comme ${gras}${bleu}msmtp${reinit} ou ${gras}${bleu}opensmtpd${reinit}).
+	- En $modeM (${vert}-m${reinit}), le script utilise l'adresse email définie dans le fichier ${bleu}$config${reinit} (email="...@...").
+	- Le script utilise ${gras}${bleu}$(which dnf4)${reinit} (${gras}${bleu}dnf5${reinit} n'est pas supporté pour le moment).
+")"
+	THE-END "succès"
+	exit 0
+}
+################################################################################################################################
+INSTALLED_DISTRO(){
+    local dateepoch
+	if EXISTS stat; then
+	    dateepoch="$(stat -c %W "/etc")"
+		days_since_install=$(( ( $(date +%s) - $(date +%s -d @"$dateepoch") ) / 86400 ))
+		datecreated=$(date -d @"$dateepoch" +"%A %d %B %Y")
+		if [ $days_since_install -eq 1 ]; then
+		  day="jour"
+		else
+		  day="jours"
+		fi
+	else
+	    datecreated="inconnue"
+	fi
+	return 0
+}
+################################################################################################################################
+OFFLINE-UPGRADE() {
+	local delay=6
+	local largeur=42
+	CECHO "[INFO]" "$vert" -n && echo -n " Téléchargement des paquets "
+	{ trap STOP-SPINNER EXIT && START-SPINNER; }
+		# shellcheck disable=SC2024
+		sudo $dnf -y offline-upgrade download >"$log" 2>"$logerror"
+	{ STOP-SPINNER && echo "terminé."; }
+	if [ "$silent" = "" ]; then $bat "$log"; else awk '{printf "%-40s %s\n", $1, $2}' "$list"; fi
+	# gestion des erreurs de téléchargement
+	if [ -s "$logerror" ]; then
+		echo
+		CECHO "[WARN]" "$jaune" -n && echo " Le téléchargement a rencontré des erreurs (pas forcément grave) : "
+		$bat "$logerror"
+		if ! ASK-YESNO "" "$vert" " Voulez-vous continer (oui/non) ? " "$magenta" ""; then
+			THE-END "des erreurs"
+			exit 1
+		fi
+	fi
+	if ASK-YESNO " Le script va maintenant redémarrer le système et faire la mise à jour hors-ligne." "$vert" " Êtes-vous d'accord (oui/non) ? " "$magenta" "[INFO]"; then
+		echo
+		PRINTBANNER-CENTERED "" "." "$cyan"
+		CECHO "[INFO]" "$vert" -n && echo " Script terminé avec succès à $(DATE-ET-HEURE)."
+		CECHO "[INFO]" "$vert" -n && echo " L'ordinateur va redémarrer dans ${delay}s :"
+		COMPTEUR $delay $largeur "Redémarrage !" "$vert" "$rouge" "$cyan" "$cyan"
+		PRINTBANNER-CENTERED "" "*" "$gras$bleu"
+		touch "$offlineindicator"  # ce fichier sera détecté par un service systemd après reboot pour afficher un message
+		sleep 0.5 && sudo $dnf offline-upgrade reboot
+	else
+		if ASK-YESNO " Redémarrage annulé par l'utilisateur... " "$vert" " Voulez-vous supprimer les paquets téléchargés non installés (oui/non) ? " "$magenta" "[INFO]"; then
+			SUDOPASS
+			# shellcheck disable=SC2024
+			sudo $dnf offline-upgrade clean >> "$log"
+			CECHO "[INFO]" "$vert" -n && echo " Tous les paquets du cache de mise à jour hors-ligne ont été effacés."
+		else
+			CECHO "[INFO]" "$vert" -n && echo " Vous pouvez utiliser la commande 'sudo dnf offline-upgrade reboot' pour terminer manuellement la mise à jour."
+		fi
+	fi
+	return 0
+}
+################################################################################################################################
+ONLINE-UPGRADE() {
+	CECHO "[INFO]" "$vert" -n && echo -n " Téléchargement des paquets et mise à jour directe "
+	{ trap STOP-SPINNER EXIT && START-SPINNER; }
+		# shellcheck disable=SC2024
+		sudo $dnf -y upgrade >"$log" 2>"$logerror"
+	{ STOP-SPINNER && echo "terminés."; }
+	if [ "$silent" = "" ]; then $bat "$log"; else awk '{printf "%-40s %s\n", $1, $2}' "$list"; fi
+	# gestion des erreurs de téléchargement
+	if [ -s "$logerror" ]; then
+		echo
+		CECHO "[WARN]" "$jaune" -n && echo " La mise à jour directe a rencontré des erreurs : "
+		$bat "$logerror"
+		THE-END "des erreurs"
+		exit 1
+	fi
+	return 0
+}
+################################################################################################################################
+SEND-EMAIL() {
+	local type="$1" # RPM ou FP
+	local liste="$2"
+	export USERLOCAL="root"
+
+	CECHO "[INFO]" "$vert" -n && echo -n " Envoi d'un email à $email "
+	echo " => veuillez éxécuter la commande ${scriptfullname} sur $host pour procéder à la mise à jour." >> "$liste"
+	{ trap STOP-SPINNER EXIT && START-SPINNER; }
+		mail -s "[$host] Des mises à jour $type sont disponibles" "$email" < "$liste"
+	{ STOP-SPINNER && echo "terminé."; }
+	return 0
+}
+################################################################################################################################
+GESTION-NOTIF() {
+	local type="$1"
+	local liste="$2"
+	local message
+	local icon
+	local file
+	declare -i attempt=0
+	declare -i max_attempts=9
+	icon="/usr/share/swcatalog/icons/fedora/128x128/org.mageia.dnfdragora.png"
+	message="Exécutez le programme $scriptfullname pour mettre à jour :"
+	file=$(awk '{print $1" "$2}' "$liste" | head -n20 "$liste")
+
+	# Attendre que D-Bus notif soit prêt (9 tours max)
+	while ! dbus-send --session --dest=org.freedesktop.notifications --type=method_call \
+			/org/freedesktop/notifications org.freedesktop.notifications.GetCapabilities >/dev/null 2>&1; do
+		attempt=$((attempt + 1))
+		if [ $attempt -ge $max_attempts ]; then
+			DATE-ET-HEURE >> "$bigerror"
+			echo "Avertissement : D-Bus n'est toujours pas prêt après $attempt tentatives. Continuation du script." >> "$bigerror"
+			break  # Sortie de la boucle et continuation du script
+		fi
+		sleep 5
+	done
+	notify-send -i "$icon" -u critical --app-name "Mises à jour système ($type)" "$message" "$file"
+	return 0
+}
+################################################################################################################################
+CHECKRPM() {
+    SUDOPASS
+    if [ "$nocacheupd" = "" ]; then
+        sudo $dnf clean all >/dev/null 2>&1 # clean all dnf data
+        CECHO "[INFO]" "$vert" -n && echo -n " Mise à jour forcée du cache des métadonnées "
+        { trap STOP-SPINNER EXIT && START-SPINNER; }
+            # shellcheck disable=SC2024
+            sudo $dnf makecache --quiet 2>"$logerror"
+        { STOP-SPINNER && echo "terminée."; }
+    fi
+    CECHO "[INFO]" "$vert" -n && echo -n " Vérification des paquets disponibles "
+	{ trap STOP-SPINNER EXIT && START-SPINNER; }
+	   # shellcheck disable=SC2024
+		if [ "$nocacheupd" = "" ]; then
+		  # shellcheck disable=SC2024
+		  sudo $dnf check-update --quiet >"$list" 2>>"$logerror"
+		else
+		  # shellcheck disable=SC2024
+		  sudo $dnf check-update --quiet >"$list" 2>"$logerror"
+		fi
+	{ STOP-SPINNER && echo "terminée."; }
+	sed -i '/^$/d' "$list"
+	if [ -s "$logerror" ]; then
+		CECHO "[ERR.]" "$rouge" -n && echo " La vérification a échoué :"
+		$bat "$logerror"
+		echo
+		THE-END "des erreurs"
+		exit 1
+	fi
+	if [ -s "$list" ]; then
+		return 0
+	else
+		return 1
+	fi
+}
+################################################################################################################################
+GESTION-RPM() {
+	echo
+	PRINTBANNER-CENTERED "GESTION DES RPMs" "." "$cyan"
+	if CHECKRPM; then
+		if [ "$checkonly" = "" ]; then
+		    if [ "$directrpms" = "yes" ]; then ONLINE-UPGRADE; else OFFLINE-UPGRADE; fi
+		else # checkonly=Yes
+			CECHO "[INFO]" "$vert" -n && echo " Des mises à jour sont disponibles."
+			awk '{printf "%-40s %s\n", $1, $2}' "$list"
+			[ "$notif" = "yes" ] && GESTION-NOTIF "RPM" "$list"
+			[ "$notif_email" = "yes" ] &&  SEND-EMAIL "RPM" "$list"
+		fi
+	else
+		CECHO "[INFO]" "$vert" -n && echo -e " ${gras}Votre système ($host) est déjà à jour.${reinit}"
+	fi
+	return 0
+}
+################################################################################################################################
+GESTION-FPK() {
+if EXISTS flatpak ; then
+	echo
+	local updatescmd
+	PRINTBANNER-CENTERED "GESTION DES FLATPAKs" "." "$cyan"
+	# check
+	CECHO "[INFO]" "$vert" -n && echo -n " Vérification des paquets disponibles "
+	{ trap STOP-SPINNER EXIT && START-SPINNER; }
+		updatescmd=$(flatpak update 2>"$logerrorFP" | grep -v "Nothing to do"  \
+		| awk '/Looking for updates/,/Proceed with these changes/ {if (!/Looking for updates/ && !/Proceed with these changes/) print}')
+	{ STOP-SPINNER && echo "terminée."; }
+	echo "$updatescmd" > "$listFP"
+	sed -i '/^$/d' "$listFP"
+	# gestion des erreurs vérification des maj
+	if [ -s "$logerrorFP" ]; then
+		CECHO "[ERR.]" "$rouge" -n && echo " La vérification a échoué :"
+		$bat "$logerrorFP"
+		echo
+	else
+		if [ -n "$updatescmd" ]; then
+			if [ "$checkonly" = "" ]; then
+				# download & install
+				CECHO "[INFO]" "$vert" -n && echo -n " Mise à jour des paquets "
+				{ trap STOP-SPINNER EXIT && START-SPINNER; }
+					flatpak -y update > "$logFP" 2>"$logerrorFP"
+				{ STOP-SPINNER && echo "terminée."; }
+				if [ "$silent" = "" ]; then $bat "$logFP"; else $bat "$listFP"; fi
+				if [ -s "$logerrorFP" ]; then # des erreurs ont été détectées
+					CECHO "[ERR.]" "$rouge" -n && echo " Le téléchargement a échoué : "
+					$bat "$logerrorFP"
+				fi
+			else # mode checkonly
+				CECHO "[INFO]" "$vert" -n && echo " Des mises à jour sont disponibles."
+				$bat "$listFP"
+				[ "$notif" = "yes" ] && GESTION-NOTIF "FLATPAK" "$listFP"
+				[ "$notif_email" = "yes" ] && SEND-EMAIL "FLATPAK" "$listFP"
+			fi
+		else
+			CECHO "[INFO]" "$vert" -n && echo -e " ${gras}Votre système ($host) est déjà à jour.${reinit}"
+		fi
+	fi
+else
+    echo
+	CECHO "[INFO]" "$vert" -n && echo -e " La commande ${gras}${bleu}flatpak${reinit} n'est pas détectée sur ce système."
+	CECHO "[INFO]" "$vert" -n && echo -e " Vous pouvez l'installer avec la commande : ${gras}${bleu}sudo dnf install flatpak${reinit}."
+	CECHO "[INFO]" "$vert" -n && echo " En attendant, la gestion des FLATPAKs est désactivée."
+fi
+return 0
+}
+################################################################################################################################
+GESTION-OPTIONS() {
+	# Affichage des modes enclenchés et gestion des incompatibilités / erreurs
+	if [ "$error" = "yes" ]; then
+		CECHO "[ERR.]" "$rouge" -n && echo -e " Argument(s) inconnu(s) : ${rouge}$cmdline${reinit}"
+		USAGE
+		THE-END "des erreurs"
+		exit 1
+	fi
+	[ "$help" = "yes" 	    ] && DISPLAY-HELP
+	[ "$checkdeps" = "yes"  ] && { CECHO "[INFO]" "$vert" -n ; echo -e " $modeCC (${vert}-C${reinit})." ; CHECK-DEPENDENCIES ;}
+	[ "$silent" = "yes"     ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeS (${vert}-s${reinit})."
+	[ "$noflatpak" = "yes"  ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeF (${vert}-F${reinit})."
+	[ "$norpm" = "yes"      ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeR (${vert}-R${reinit})."
+	[ "$nolog" = "yes"      ] && CECHO "[INFO]" "$vert" -n && echo -e " $mode0 (${vert}-0${reinit})."
+	[ "$directrpms" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeD (${vert}-d${reinit})."
+	[ "$nocacheupd" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeB (${vert}-B${reinit})."
+
+	if [ "$terminal" = "dumb" ] ; then
+# en mode "arrière plan" on source le fichier de config du script pour obtenir le mot de passe utilisateur password="..."
+		if [ -f "$config" ]; then
+			# shellcheck source=/dev/null
+			source "$config"
+		else
+			DATE-ET-HEURE >> "$bigerror"
+			echo "mot de passe utilisateur introuvable" | tee -a "$bigerror"
+			echo "saisir password=\"mypassword\" dans $config" | tee -a "$bigerror"
+			THE-END "des erreurs" | tee -a "$bigerror"
+			exit 1
+		fi
+	fi
+	if  [ "$notif_email" = "yes" ]; then # on vérifie qu'une adresse email est définie et que les paquets requis sont installés
+		if [ -f "$config" ]; then
+			CECHO "[INFO]" "$vert" -n && echo -e " Lecture du fichier de configuration (${bleu}$config${reinit})."
+			# shellcheck source=/dev/null
+			source "$config"  # lecture fichier de conf
+		fi
+		if [ "$email" = "" ]; then
+			DATE-ET-HEURE >> "$bigerror"
+			CECHO "[WARN]" "$jaune" -n && echo " Aucune adresse email trouvée." | tee -a "$bigerror"
+			CECHO "[INFO]" "$vert" -n && echo " Veuillez exécuter la commande suivante pour créer le fichier de configuration :" | tee -a "$bigerror"
+			echo -e "	${gras}${bleu}$scriptfullname -C${reinit}" | tee -a "$bigerror"
+			THE-END "des erreurs" | tee -a "$bigerror"
+			exit 1
+		else
+			CECHO "[INFO]" "$vert" -n && echo -e " e-mail : ${bleu}$email${reinit}."
+		fi
+		if ! EXISTS mail ; then
+		    DATE-ET-HEURE >> "$bigerror"
+			CECHO "[ERR.]" "$rouge" -n | tee -a "$bigerror" && echo -e " La commande ${gras}${bleu}mail${reinit} n'est pas disponible sur votre système."| tee -a "$bigerror"
+			CECHO "[INFO]" "$vert" -n  | tee -a "$bigerror" && echo -e " Vous pouvez l'installer avec la commande : ${gras}${bleu}sudo dnf install s-nail${reinit}." | tee -a "$bigerror"
+			CECHO "[WARN]" "$jaune" -n | tee -a "$bigerror" && echo -e " Vous devez aussi installer et configurer un \"Mail Transport Agent\", par exemple ${gras}${bleu}msmtp${reinit} avec la commande ${gras}${bleu}sudo dnf install msmtp${reinit}." | tee -a "$bigerror"
+		fi
+	fi
+	if [ "$checkonly" = "yes" ]; then  # cas mode check-only
+		CECHO "[INFO]" "$vert" -n && echo -e " $modeC (${vert}-c${reinit})."
+		if [ "$notif_email" = "yes" ]; then
+			if [ "$terminal" = "dumb" ]; then # script lancé en arrière plan
+				CECHO "[INFO]" "$vert" -n && echo -e " $modeM (${vert}-m${reinit})."
+			else # script lancé en avant plan dans un terminal
+				CECHO "[INFO]" "$vert" -n && echo -e " $modeM (${vert}-m${reinit}) ignoré car le script est lancé dans un terminal interactif."
+				notif_email=""
+			fi
+		fi
+		if [ "$notif" = "yes" ]; then
+			CECHO "[INFO]" "$vert" -n && echo -e " $modeN (${vert}-n${reinit})."
+		fi
+	else # le mode check only n'est pas activé on ignore donc les notifications
+		if [ "$notif_email" = "yes" ]; then
+			CECHO "[INFO]" "$vert" -n && echo -e " $modeM (${vert}-m${reinit}) ignoré car le $modeC (${vert}-c${reinit}) n'est pas activé."
+			notif_email=""
+		fi
+		if [ "$notif" = "yes" ]; then
+			CECHO "[INFO]" "$vert" -n && echo -e " $modeN (${vert}-n${reinit}) ignoré car le $modeC (${vert}-c${reinit}) n'est pas activé."
+			notif=""
+		fi
+	fi
+	return 0
+}
+################################################################################################################################
+INIT() {
+	local fiche
+	UNALIAS
+	# Initialisation des variables globales
+	declare -i days_since_install=0
+	terminal="$TERM"
+	INITCOLOR
+	error=""
+	day=""
+	datecreated=""
+	help=""
+	silent=""
+	nolog=""
+	checkonly=""
+	notif=""
+	notif_email=""
+	noflatpak=""
+	norpm=""
+	checkdeps=""
+	directrpms=""
+	nocacheupd=""
+	email=""
+	password=""
+	dnf="/usr/bin/dnf4"
+	modeS="${jaune}mode \"pseudo-silencieux\"${reinit}"
+	modeC="${jaune}mode \"vérification\"${reinit}"
+	modeM="${jaune}mode \"notification par email\"${reinit}"
+	modeN="${jaune}mode \"notification système\"${reinit}"
+	modeF="${jaune}mode \"sans gestion des FLATPAKs\"${reinit}"
+	modeR="${jaune}mode \"sans gestion des RPMs\"${reinit}"
+	mode0="${jaune}mode \"sans conservation des logs\"${reinit}"
+	modeD="${jaune}mode \"mise à jour directe\"${reinit}"
+	modeCC="${jaune}mode \"contrôle des dépendances\"${reinit}"
+	modeB="${jaune}mode \"pas de mise à jour du cache\"${reinit}"
+	datadir="$HOME/.local/share/${scriptname}"
+	confdir="$HOME/.config/${scriptname}"
+	log="$datadir/${scriptname}-RPM.log"
+	logFP="$datadir/${scriptname}-FP.log"
+	logerrorFP="$datadir/${scriptname}-FP.error"
+	logerror="$datadir/${scriptname}-RPM.error"
+	bigerror="$datadir/${scriptname}.error"
+	list="$datadir/${scriptname}-RPM-to-update.txt"
+	listFP="$datadir/${scriptname}-FP-to-update.txt"
+	offlineindicator="$HOME/.offline-upgrade"
+	config="$confdir/config.rc"
+	for fiche in "$log" "$logFP" "$list" "$listFP"; do rm -f "$fiche" 2>/dev/null; done
+	echo "$terminal" > "$datadir/.term"
+	# shellcheck source=/dev/null
+	source "/etc/os-release"
+	[ ! -d "$datadir"  ] && mkdir -p "$datadir"
+	[ ! -d "$confdir"  ] && mkdir -p "$confdir"
+	[ ! -f "$bigerror" ] && touch "$bigerror"
+	if EXISTS bat; then bat="$(which bat) --paging=never"; else bat="$(which cat)"; fi
+# affichage initial
+	if [ "$terminal" = "dumb" ]; then sleep 10; else CLEAR; fi
+	INSTALLED_DISTRO
+	HOSTNAME
+	PRINTBANNER-CENTERED " MISE À JOUR de $NAME $VERSION " "*" "$gras$bleu"
+	CECHO "[INFO]" "$vert" -n && echo " Script démarré à $(DATE-ET-HEURE)."
+	CECHO "[INFO]" "$vert" -n && echo -e " Version du script : ${gras}${vert}$ver${reinit}"
+	if [ "$datecreated" != "inconnue" ]; then
+	   CECHO "[INFO]" "$vert" -n && echo -e " Date d'installation de ${ID^} (${gras}$host${reinit}) : ${italic}$datecreated${reinit} (il y a ${days_since_install} $day)"
+	fi
+	CECHO "[INFO]" "$vert" -n && echo -e " Ligne de commande : ${gras}${bleu}${scriptfullname}${reinit} ${gras}${vert}${cmdline}${reinit}"
+#
+	CHECK-DEPENDENCIES
+	return 0
+}
+################################################################################################################################
+THE-END() {
+	local fiche
+	echo
+	if [ "$nolog" = "yes" ]; then
+		rm -f "$datadir"/*
+	else # on efface seulement les logs vides
+		for fiche in "$logerrorFP" "$logerror" "$log" "$logFP" "$bigerror" "$list" "$listFP"; do
+			[ ! -s "$fiche" ] && rm -f "$fiche" 2>/dev/null
+		done
+	fi
+	PRINTBANNER-CENTERED "" "." "$cyan"
+	[ -n "$(ls "$datadir")" ] && { CECHO "[INFO]" "$vert" -n ; find "$datadir" -type f ! -name '.*' -print0 | xargs -0 echo " Logs : " ; }
+	CECHO "[INFO]" "$vert" -n && echo -e " Script terminé avec $1 à $(DATE-ET-HEURE)."
+	PRINTBANNER-CENTERED "" "*" "$gras$bleu"
+	return 0
+}
+#
+################################################################################################################################
+#                   CORPS DU SCRIPT                                                                                            #
+################################################################################################################################
+INIT
+# capture de la ligne de commande (arguments courts)
+	while getopts ':shcmnFR0CdB' arguments; do
+		case "$arguments" in
+			s)	silent="yes"     ;;
+			h)  help="yes"       ;;
+			c)  checkonly="yes"  ;;
+			m)	notif_email="yes";;
+			n)  notif="yes"      ;;
+			F)	noflatpak="yes"  ;;
+			R)	norpm="yes"      ;;
+			0)	nolog="yes"      ;;
+			C)  checkdeps="yes"  ;;
+			d)  directrpms="yes" ;;
+			B)  nocacheupd="yes" ;;
+			\?) error="yes"      ;;
+		esac
+	done
+	shift "$((OPTIND -1))"
+	for arg in "$@"; do
+		if [[ "$arg" != -* ]]; then
+			error="yes"
+		fi
+	done
+# /capture de la ligne de commande (arguments courts)
+GESTION-OPTIONS
+[ "$noflatpak" = "" ] && GESTION-FPK
+[ "$norpm" = "" ] && GESTION-RPM
+THE-END "succès"
+exit 0

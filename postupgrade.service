@@ -1,0 +1,11 @@
+[Unit]
+Description=Vérifier si la mise à jour hors ligne s'est bien passée
+After=graphical-session.target network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/post-upgrade-message.sh
+Type=oneshot
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,11 @@
+[Unit]
+Description=Vérifier la présence de mise à jour
+After=graphical-session.target network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/local/bin/fedupdate -c -n
+Type=oneshot
+
+[Install]
+WantedBy=default.target

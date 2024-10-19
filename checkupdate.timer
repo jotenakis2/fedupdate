@@ -1,0 +1,10 @@
+[Unit]
+Description=Planifie l'exécution de checkupdate.service toutes les 2 heures
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=2h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
