@@ -1,5 +1,5 @@
 # *fedupdate*
-Script **bash** de mise à jour de __Fedora Linux__ basée sur dnf et flatpak.
+Script **bash** de mise à jour de __Fedora Linux__ basé sur dnf et flatpak.
 
 ## comment installer *fedupdate* ?
 ```
