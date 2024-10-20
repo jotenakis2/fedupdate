@@ -1,7 +1,8 @@
 #!/bin/bash
-ver=1.1
+ver=1.15
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
+# le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
 #################################################
 # Copyright OLIVIER LORILLU                     #
 # ce script est sous license GPL                #
@@ -89,6 +90,7 @@ CREATE-CONFIG() {
 		IFS= read -r password
 		echo "password=\"${password}\"" >> "$config"
 		CECHO "[INFO]" "$vert" -n && echo -e " Fichier ${gras}${bleu}$config${reinit} crée :"
+		chmod 600 $config
 		$bat "$config"
 	else
 		CECHO "[INFO]" "$vert" -n && echo -e " Création du fichier ${gras}${bleu}$config${reinit} refusée par l'utilisateur."
@@ -148,10 +150,11 @@ UNALIAS() { # on desalias les commandes utilisées pour éviter un comportement 
 ################################################################################################################################
 SUDOPASS() {
     if [ "$terminal" = "dumb" ]; then
-        echo "$password" | sudo -S echo -n
+        [ "$password" != "" ] && echo "$password" | sudo -S echo -n
 	else
 	    if ! sudo -n true 2>/dev/null; then
-		    CECHO "[ACT.]" "$magenta" -n && sudo -p " Veuillez saisir le mot de passe de l'utilisateur $(whoami) (sudo) : " -S echo -n
+		    [ "$password" != "" ] && echo "$password" | sudo -S echo -n > /dev/null 2>&1 \
+			|| { CECHO "[ACT.]" "$magenta" -n ; sudo -p " Veuillez saisir le mot de passe de l'utilisateur $(whoami) (sudo) : " -S echo -n ; }
 		fi
 	fi
 	return 0
@@ -587,12 +590,11 @@ GESTION-OPTIONS() {
 	[ "$directrpms" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeD (${vert}-d${reinit})."
 	[ "$nocacheupd" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeB (${vert}-B${reinit})."
 
-	if [ "$terminal" = "dumb" ] ; then
-# en mode "arrière plan" on source le fichier de config du script pour obtenir le mot de passe utilisateur password="..."
-		if [ -f "$config" ]; then
-			# shellcheck source=/dev/null
-			source "$config"
-		else
+	if [ -f "$config" ]; then
+		# shellcheck source=/dev/null
+		source "$config"
+	else
+		if [ "$terminal" = "dumb" ] ; then
 			DATE-ET-HEURE >> "$bigerror"
 			echo "mot de passe utilisateur introuvable" | tee -a "$bigerror"
 			echo "saisir password=\"mypassword\" dans $config" | tee -a "$bigerror"
