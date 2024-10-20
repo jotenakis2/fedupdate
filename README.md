@@ -3,7 +3,7 @@ Script **bash** de mise à jour de __Fedora Linux__ basé sur dnf et flatpak.
 
 ## comment installer *fedupdate* ?
 ```
-git clone https://codeberg.org/jotenakis/fedupdate && cd fedupdate && chmod +x ./install.sh && ./install.sh
+git clone https://codeberg.org/jotenakis/fedupdate.git && cd fedupdate && chmod +x ./install.sh && ./install.sh
 ```
 Cela va installer *fedupdate* et *post-upgrade-message.sh* dans **/usr/local/bin**. 
 
