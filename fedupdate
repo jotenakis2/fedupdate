@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=1.15
+ver=1.20
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -76,8 +76,65 @@ INITCOLOR() {
 	return 0
 }
 ################################################################################################################################
+PASSWORD_INPUT() { # Fonction pour capturer le mot de passe le stocker dans $1 et afficher des *
+	local -n password_ref="$1"
+	local char
+	# Désactiver l'affichage des caractères
+	stty -echo
+	while IFS= read -r -s -n1 char; do
+		# on arrête quand la touche ENTREE est pressée
+		if [[ -z $char ]]; then
+			break
+		fi
+		# Si la touche backspace est pressée
+		if [[ $char == $'\x7f' ]]; then
+		    if [[ ${#password_ref} -gt 0 ]]; then
+		    password_ref=${password_ref%?}
+		    echo -ne "\b \b"
+		    fi
+		else
+		    password_ref+="$char"
+		    echo -n '*'
+		fi
+	done
+	echo
+	stty echo  # Réactiver l'affichage des caractères
+}
+################################################################################################################################
+ENCRYPT-PASS() {
+	local pubkey="${privatekey}.pub"
+	if EXISTS openssl ; then
+		# Generate private RSA key in PEM format
+		openssl genpkey -algorithm RSA -out "$privatekey" -pkeyopt rsa_keygen_bits:4096 >/dev/null 2>&1
+		chmod 600 "$privatekey"
+		# Generate the associated public key in PEM format
+		openssl rsa -in "$privatekey" -pubout -out "$pubkey" >/dev/null 2>&1
+		#
+		# Encrypt password using the public key and store it
+		if ! echo -n "$password" | openssl pkeyutl -encrypt -pubin -inkey "$pubkey" -out "$passwordencrypted" >/dev/null 2>&1; then
+		    CECHO "[ERR.]" "$rouge" -n && echo "Erreur lors du chiffrement du mot de passe." | tee -a "$bigerror"
+			return 1
+		else
+			return 0
+		fi
+	else
+		return 1
+	fi
+}
+################################################################################################################################
+DECRYPT-PASS() {
+	# Decrypt the password using the private key and store it in the password variable
+	if [ -f "$privatekey" ] && [ -f "$passwordencrypted" ] ; then
+		password=$(openssl pkeyutl -decrypt -inkey "$privatekey" -in "$passwordencrypted" 2>/dev/null)
+		return 0
+	else
+		return 1
+	fi
+}
+################################################################################################################################
 CREATE-CONFIG() {
-	if ASK-YESNO "" "$vert" " Voulez-vous en définir un maintenant (oui/non) ? " "$magenta" ""; then
+	local msg=$1
+	if ASK-YESNO "" "$vert" " Voulez-vous en $msg un maintenant (oui/non) ? " "$magenta" ""; then
 		while true; do
 			CECHO "[ACT.]" "$magenta" -n && echo -n " Merci de saisir une adresse email valide : "
 			IFS= read -r email
@@ -87,17 +144,29 @@ CREATE-CONFIG() {
 			fi
 		done
 		CECHO "[ACT.]" "$magenta" -n && echo -n " Merci de saisir le mot de passe de l'utilisateur $(whoami) : "
-		IFS= read -r password
-		echo "password=\"${password}\"" >> "$config"
+		PASSWORD_INPUT password
+		if ASK-YESNO "" "$vert" " Voulez-vous stocker le mot de passe en clair (oui) ou chiffré (non) ? " "$magenta" ""; then
+			rm -f "$passwordencrypted" "$privatekey" "$privatekey.pub" 2>/dev/null
+			echo "password=\"${password}\"" >> "$config"
+			chmod 600 $config
+		else
+			if ENCRYPT-PASS; then
+				CECHO "[INFO]" "$vert" -n && echo -e " Le mot de passe est stocké chiffré dans ${gras}${bleu}$passwordencrypted${reinit}."
+				echo "password=\"***EnCrYpTed***\"" >> "$config"
+			else
+				CECHO "[ERR.]" "$rouge" -n && echo " Le chiffrement du mot de passe a échoué."
+				CECHO "[INFO]" "$vert" -n && echo " Le mot de passe est donc stocké en clair."
+				echo "password=\"${password}\"" >> "$config"
+			fi
+		fi
 		CECHO "[INFO]" "$vert" -n && echo -e " Fichier ${gras}${bleu}$config${reinit} crée :"
-		chmod 600 $config
 		$bat "$config"
 	else
 		CECHO "[INFO]" "$vert" -n && echo -e " Création du fichier ${gras}${bleu}$config${reinit} refusée par l'utilisateur."
 	fi
 }
 ################################################################################################################################
-CHECK-DEPENDENCIES() {
+CHECK() {
 	local cmdmissing="no"
 	local cmd=""
 	[ "$checkdeps" = "yes" ] && { echo ; PRINTBANNER-CENTERED "" "." "$cyan" ; }
@@ -112,10 +181,10 @@ CHECK-DEPENDENCIES() {
 		if [ -f "$config" ]; then
 			CECHO "[INFO]" "$vert" -n && echo -e " Contenu du fichier ${gras}${bleu}$config${reinit} :"
 			$bat "$config"
-			CREATE-CONFIG
+			CREATE-CONFIG "recréer"
 		else
 			CECHO "[INFO]" "$vert" -n && echo -ne " Fichier de configuration ${gras}${bleu}$config${reinit} manquant."
-			CREATE-CONFIG
+			CREATE-CONFIG "créer"
 		fi
 	fi
 	if [ "$cmdmissing" = "yes" ]||[ "$checkdeps" = "yes" ] ; then
@@ -127,9 +196,9 @@ CHECK-DEPENDENCIES() {
 		$dnf list --installed | grep --color -E '^(bash|coreutils|dnf|findutils|gawk|libnotify|ncurses|sed|sudo)\.'
 		echo
 		CECHO "[INFO]" "$vert" -n && echo -e " Voici la liste des ${gras}${jaune}paquets optionnels${reinit} :"
-		echo -e "	${gras}${bleu}s-nail${reinit}, ${gras}${bleu}msmtp${reinit} (ou ${gras}${bleu}opensmtpd${reinit}) et ${gras}${bleu}flatpak${reinit}."
+		echo -e "	${gras}${bleu}s-nail${reinit}, ${gras}${bleu}msmtp${reinit} (ou ${gras}${bleu}opensmtpd${reinit}), ${gras}${bleu}openssl${reinit} et ${gras}${bleu}flatpak${reinit}."
 		CECHO "[INFO]" "$vert" -n && echo -e " Voici la liste des ${gras}${jaune}paquets optionnels trouvés${reinit} sur ${gras}$host${reinit} :"
-		$dnf list --installed | grep --color -E '^(s-nail|msmtp|opensmtpd|flatpak)\.'
+		$dnf list --installed | grep --color -E '^(s-nail|msmtp|opensmtpd|flatpak|openssl)\.'
 		[ $cmdmissing = "yes" ] && { THE-END "des erreurs" ; exit 1 ;}
 		[ $checkdeps = "yes" ] && { THE-END "succès" ; exit 0 ;}
 	else
@@ -140,7 +209,7 @@ CHECK-DEPENDENCIES() {
 UNALIAS() { # on desalias les commandes utilisées pour éviter un comportement imprévu
 	local cmd=""
 	list2check=("unalias" "mkdir" "printf" "mail" "touch" "sleep" "rm" "cat" "bat" "sed" "head" "awk" "echo" "dnf" \
-	"tput" "notify-send" "sudo" "read" "date" "flatpak" "trap" "command" "dbus-send" "source" "getopts" "ls" "stat" "tee")
+	"tput" "notify-send" "sudo" "read" "date" "flatpak" "trap" "command" "dbus-send" "source" "getopts" "ls" "stat" "tee" "openssl")
 
 	for cmd in "${list2check[@]}"; do
 		unalias "$cmd" >/dev/null 2>&1
@@ -149,12 +218,31 @@ UNALIAS() { # on desalias les commandes utilisées pour éviter un comportement 
 }
 ################################################################################################################################
 SUDOPASS() {
-    if [ "$terminal" = "dumb" ]; then
-        [ "$password" != "" ] && echo "$password" | sudo -S echo -n
-	else
-	    if ! sudo -n true 2>/dev/null; then
-		    [ "$password" != "" ] && echo "$password" | sudo -S echo -n > /dev/null 2>&1 \
-			|| { CECHO "[ACT.]" "$magenta" -n ; sudo -p " Veuillez saisir le mot de passe de l'utilisateur $(whoami) (sudo) : " -S echo -n ; }
+	if ! sudo -n true 2>/dev/null; then # si sudo a besoin du mot de passe
+		if [ -f "$passwordencrypted" ]; then # mot de passe chiffré
+			if DECRYPT-PASS; then
+				echo "$password" | sudo -S echo -n > /dev/null 2>&1
+			else
+				CECHO "[WARN]" "$jaune" -n && echo -e " Erreur de déchiffrement du mot de passe de ${gras}$(whoami)${reinit}"
+				CECHO "[INFO]" "$vert" -n && echo -e " Vous pourrez lancer ${gras}${bleu}$scriptfullname -C${reinit} pour refaire le chiffrement."
+				if [ "$terminal" != "dumb" ]; then
+					CECHO "[ACT.]" "$magenta" -n && sudo -p " Veuillez saisir le mot de passe de l'utilisateur $(whoami) (sudo) : " -S echo -n
+				else
+					echo " Le déchiffrement du mot de passe a échoué." | tee -a "$bigerror"
+					THE-END "des erreurs"
+					exit 1
+				fi
+			fi
+		else # mot de passe en clair
+			if [ "$terminal" = "dumb" ]; then
+				echo "$password" | sudo -S echo -n
+			else
+	     		if [ "$password" != "" ]; then # le mdp existe on l'envoie à sudo
+					echo "$password" | sudo -S echo -n > /dev/null 2>&1
+				else # le mdp n'existe pas on le demande à l'utilisateur
+					CECHO "[ACT.]" "$magenta" -n && sudo -p " Veuillez saisir le mot de passe de l'utilisateur $(whoami) (sudo) : " -S echo -n
+				fi
+	        fi
 		fi
 	fi
 	return 0
@@ -331,9 +419,9 @@ ${bleu}${underline}DESCRIPTION${reinit}
 
 ${bleu}${underline}OPTIONS${reinit}
         ${vert}-h   ${reinit}affiche cette ${jaune}aide${reinit} et quitte,
-        ${vert}-C   ${reinit}affiche et vérifie la présence des dépendances puis quitte ($modeCC),
+        ${vert}-C   ${reinit}affiche et/ou crée le fichier de configuration, puis contrôle les dépendances ($modeCC),
         ${vert}-s   ${reinit}avec cette option, seules les erreurs et la liste de paquets seront affichées ($modeS),
-        ${vert}-c   ${reinit}avec cette option, le script ne fera que vérifier si des mises à jour sont disponibles ($modeC),
+        ${vert}-c   ${reinit}avec cette option, le script va vérifier si des mises à jour sont disponibles sans les installer ($modeC),
         ${vert}-m   ${reinit}avec cette option, le script envoie un email si des mises à jour sont disponibles ($modeM),
         ${vert}-n   ${reinit}avec cette option, le script envoie une notification système si des mises à jour sont disponibles ($modeN),
         ${vert}-F   ${reinit}avec cette option, la gestion des ${jaune}FLATPAKs${reinit} est désactivée ($modeF),
@@ -342,11 +430,18 @@ ${bleu}${underline}OPTIONS${reinit}
         ${vert}-B   ${reinit}avec cette option (${gras}non recommandée${reinit}), le script ne fera pas de mise à jour forcée du cache de ${gras}${bleu}dnf${reinit} ($modeB),
         ${vert}-0   ${reinit}avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script ($mode0).
 
+${bleu}${underline}FICHIERS${reinit}
+	- ${gras}${bleu}$config${reinit} : fichier de configuration de ${gras}${bleu}$scriptname${reinit}.
+	- ${gras}${bleu}$list${reinit} : liste des paquets ${jaune}RPMs${reinit} à mettre à jour.
+	- ${gras}${bleu}$listFP${reinit} : liste des paquets ${jaune}FLATPAKs${reinit} à mettre à jour.
+
 ${bleu}${underline}NOTES${reinit}
+	- Le $modeCC (${vert}-C${reinit}) va permettre de générer le fichier de configuration et de vérifier les dépendances du script.
+	- Le fichier de configuration conserve le mail nécessaire à l'option ${vert}-m${reinit} et le mot de passe de ${gras}${bleu}$(whoami)${reinit}.
+	- Ce mot de passe, utilisé par la commande ${gras}${bleu}sudo${reinit}, peut-être stocké en clair, ou chiffré si la bibliothèque ${gras}${bleu}openssl${reinit} est installée.
 	- Le $modeM (${vert}-m${reinit}) et le $modeN (${vert}-n${reinit}) ne sont appliqués qu'en $modeC (${vert}-c${reinit}). Ils sont ignorés sinon.
 	- Le $modeM (${vert}-m${reinit}) n'est appliqué que si le script est lancé en arrière plan (via une tâche cron ou une unité systemd).
 	- Le $modeM (${vert}-m${reinit}) nécessite la commande ${gras}${bleu}mail${reinit} et un MTA configuré (Mail Transport Agent, comme ${gras}${bleu}msmtp${reinit} ou ${gras}${bleu}opensmtpd${reinit}).
-	- En $modeM (${vert}-m${reinit}), le script utilise l'adresse email définie dans le fichier ${bleu}$config${reinit} (email="...@...").
 	- Le script utilise ${gras}${bleu}$(which dnf4)${reinit} (${gras}${bleu}dnf5${reinit} n'est pas supporté pour le moment).
 ")"
 	THE-END "succès"
@@ -378,7 +473,7 @@ OFFLINE-UPGRADE() {
 		# shellcheck disable=SC2024
 		sudo $dnf -y offline-upgrade download >"$log" 2>"$logerror"
 	{ STOP-SPINNER && echo "terminé."; }
-	if [ "$silent" = "" ]; then $bat "$log"; else awk '{printf "%-40s %s\n", $1, $2}' "$list"; fi
+	if [ "$silent" = "" ]; then $bat "$log"; else $bat "$list"; fi
 	# gestion des erreurs de téléchargement
 	if [ -s "$logerror" ]; then
 		echo
@@ -417,7 +512,7 @@ ONLINE-UPGRADE() {
 		# shellcheck disable=SC2024
 		sudo $dnf -y upgrade >"$log" 2>"$logerror"
 	{ STOP-SPINNER && echo "terminés."; }
-	if [ "$silent" = "" ]; then $bat "$log"; else awk '{printf "%-40s %s\n", $1, $2}' "$list"; fi
+	if [ "$silent" = "" ]; then $bat "$log"; else $bat "$list"; fi
 	# gestion des erreurs de téléchargement
 	if [ -s "$logerror" ]; then
 		echo
@@ -447,13 +542,22 @@ GESTION-NOTIF() {
 	local liste="$2"
 	local message
 	local icon
-	local file
+	local messagelong
+	local tmp="/tmp/file.tmp"
 	declare -i attempt=0
 	declare -i max_attempts=9
 	icon="/usr/share/swcatalog/icons/fedora/128x128/org.mageia.dnfdragora.png"
 	message="Exécutez le programme $scriptfullname pour mettre à jour :"
-	file=$(awk '{print $1" "$2}' "$liste" | head -n20 "$liste")
-
+	# pour plus de lisibilité finale
+	# j'extrait la 1ère colonne
+	# je nettoie les aarch64, les noaarch, les org.,
+	# je trie, je supprime les doublons, et je mets dans un fichier temporaire.
+	awk '{print $1}' "$liste" | sort -u | sed -E 's/\.aarch64$//; s/\.noarch$//; s/^org\.//'  > "$tmp"
+	# je remplace les sauts de lignes par une virgule suivie de 3 espaces et j'enlève la toute dernière virgule.
+	# car notify-send ne gère pas l'affichage d'une colonne.
+	# je met le résultat dans la variable messagelong qui sera affichée par notify-send
+	messagelong=$(tr '\n' ',' < "$tmp" | sed 's/,/,   /g' | sed 's/[[:space:]]*,[[:space:]]*$/ /')
+	rm -f "$tmp" 2>/dev/null
 	# Attendre que D-Bus notif soit prêt (9 tours max)
 	while ! dbus-send --session --dest=org.freedesktop.notifications --type=method_call \
 			/org/freedesktop/notifications org.freedesktop.notifications.GetCapabilities >/dev/null 2>&1; do
@@ -465,11 +569,12 @@ GESTION-NOTIF() {
 		fi
 		sleep 5
 	done
-	notify-send -i "$icon" -u critical --app-name "Mises à jour système ($type)" "$message" "$file"
+	notify-send -i "$icon" -u critical --app-name "Mises à jour système ($type)" "$message" "$messagelong"
 	return 0
 }
 ################################################################################################################################
 CHECKRPM() {
+	local listtmp="/tmp/list.tmp"
     SUDOPASS
     if [ "$nocacheupd" = "" ]; then
         sudo $dnf clean all >/dev/null 2>&1 # clean all dnf data
@@ -484,13 +589,14 @@ CHECKRPM() {
 	   # shellcheck disable=SC2024
 		if [ "$nocacheupd" = "" ]; then
 		  # shellcheck disable=SC2024
-		  sudo $dnf check-update --quiet >"$list" 2>>"$logerror"
+		  sudo $dnf check-update --quiet >"$listtmp" 2>>"$logerror"
 		else
 		  # shellcheck disable=SC2024
-		  sudo $dnf check-update --quiet >"$list" 2>"$logerror"
+		  sudo $dnf check-update --quiet >"$listtmp" 2>"$logerror"
 		fi
 	{ STOP-SPINNER && echo "terminée."; }
-	sed -i '/^$/d' "$list"
+	awk '{printf "%-45s %-7s\n", $1, $2}' "$listtmp" | grep -v '^[[:space:]]*$' > "$list"
+	rm -f "$listtmp" 2>/dev/null
 	if [ -s "$logerror" ]; then
 		CECHO "[ERR.]" "$rouge" -n && echo " La vérification a échoué :"
 		$bat "$logerror"
@@ -513,7 +619,7 @@ GESTION-RPM() {
 		    if [ "$directrpms" = "yes" ]; then ONLINE-UPGRADE; else OFFLINE-UPGRADE; fi
 		else # checkonly=Yes
 			CECHO "[INFO]" "$vert" -n && echo " Des mises à jour sont disponibles."
-			awk '{printf "%-40s %s\n", $1, $2}' "$list"
+			$bat "$list"
 			[ "$notif" = "yes" ] && GESTION-NOTIF "RPM" "$list"
 			[ "$notif_email" = "yes" ] &&  SEND-EMAIL "RPM" "$list"
 		fi
@@ -534,8 +640,8 @@ if EXISTS flatpak ; then
 		updatescmd=$(flatpak update 2>"$logerrorFP" | grep -v "Nothing to do"  \
 		| awk '/Looking for updates/,/Proceed with these changes/ {if (!/Looking for updates/ && !/Proceed with these changes/) print}')
 	{ STOP-SPINNER && echo "terminée."; }
-	echo "$updatescmd" > "$listFP"
-	sed -i '/^$/d' "$listFP"
+	echo "$updatescmd" | awk '{printf "%-45s %-7s\n", $2, $3}' | grep -v '^[[:space:]]*$' > "$listFP"
+	#sed -i '/^$/d' "$listFP"
 	# gestion des erreurs vérification des maj
 	if [ -s "$logerrorFP" ]; then
 		CECHO "[ERR.]" "$rouge" -n && echo " La vérification a échoué :"
@@ -582,7 +688,7 @@ GESTION-OPTIONS() {
 		exit 1
 	fi
 	[ "$help" = "yes" 	    ] && DISPLAY-HELP
-	[ "$checkdeps" = "yes"  ] && { CECHO "[INFO]" "$vert" -n ; echo -e " $modeCC (${vert}-C${reinit})." ; CHECK-DEPENDENCIES ;}
+	[ "$checkdeps" = "yes"  ] && { CECHO "[INFO]" "$vert" -n ; echo -e " $modeCC (${vert}-C${reinit})." ; CHECK ;}
 	[ "$silent" = "yes"     ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeS (${vert}-s${reinit})."
 	[ "$noflatpak" = "yes"  ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeF (${vert}-F${reinit})."
 	[ "$norpm" = "yes"      ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeR (${vert}-R${reinit})."
@@ -683,10 +789,12 @@ INIT() {
 	modeR="${jaune}mode \"sans gestion des RPMs\"${reinit}"
 	mode0="${jaune}mode \"sans conservation des logs\"${reinit}"
 	modeD="${jaune}mode \"mise à jour directe\"${reinit}"
-	modeCC="${jaune}mode \"contrôle des dépendances\"${reinit}"
+	modeCC="${jaune}mode \"contrôle de fonctionnement\"${reinit}"
 	modeB="${jaune}mode \"pas de mise à jour du cache\"${reinit}"
 	datadir="$HOME/.local/share/${scriptname}"
 	confdir="$HOME/.config/${scriptname}"
+	passwordencrypted="$datadir/.password.enc"
+	privatekey="$datadir/.${scriptname}_rsa.pem"
 	log="$datadir/${scriptname}-RPM.log"
 	logFP="$datadir/${scriptname}-FP.log"
 	logerrorFP="$datadir/${scriptname}-FP.error"
@@ -716,7 +824,7 @@ INIT() {
 	fi
 	CECHO "[INFO]" "$vert" -n && echo -e " Ligne de commande : ${gras}${bleu}${scriptfullname}${reinit} ${gras}${vert}${cmdline}${reinit}"
 #
-	CHECK-DEPENDENCIES
+	CHECK
 	return 0
 }
 ################################################################################################################################
