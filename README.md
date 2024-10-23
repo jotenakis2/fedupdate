@@ -37,7 +37,7 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 ## quelles sont les options de *fedupdate* ?
 -   -h   affiche cette aide et quitte,
 
--   -C   affiche et vérifie la présence des dépendances puis quitte (**mode "contrôle des dépendances"**),
+-   -C   affiche et/ou crée le fichier de configuration, puis contrôle les dépendances (**mode "contrôle du fonctionnement"**),
 
 -   -s   avec cette option, seules les erreurs et la liste de paquets seront affichées (**mode "pseudo-silencieux"**),
 
@@ -57,10 +57,24 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 -   -0   avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script (**mode "sans conservation des logs"**).
 
+## Notes importantes
+-   Le mode "contrôle de fonctionnement" (-C) va permettre de générer le fichier de configuration et de vérifier les dépendances du script.
 
+-   Le fichier de configuration conserve le mail nécessaire à l'option -m et le mot de passe de l'utilisateur.
 
+-   Ce mot de passe, utilisé par la commande sudo, peut-être stocké en clair, ou chiffré si la bibliothèque openssl est installée.
 
+-   Le mode "notification par email" (-m) et le mode "notification système" (-n) ne sont appliqués qu'en mode "vérification" (-c). Ils sont ignorés sinon.
 
+-   Le mode "notification par email" (-m) n'est appliqué que si le script est lancé en arrière plan (via une tâche cron ou une unité systemd).
 
+-   Le mode "notification par email" (-m) nécessite la commande mail et un MTA configuré (Mail Transport Agent, comme msmtp ou opensmtpd).
 
+-   Le script utilise /usr/bin/dnf4 (dnf5 n'est pas supporté pour le moment).
 
+## Dépendances
+-   Paquets obligatoires :
+        bash, coreutils, dnf (v4), findutils, gawk, libnotify, ncurses, sed et sudo.
+
+-   Paquets optionnels :
+        s-nail, msmtp (ou opensmtpd), openssl et flatpak.
