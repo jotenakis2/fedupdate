@@ -1,4 +1,4 @@
-.TH \fBfedupdate\fR 1 "Octobre 2024" "v1.0" "Documentation utilisateur"
+.TH \fBfedupdate\fR 1 "Octobre 2024" "v1.1" "Documentation utilisateur"
 .SH NAME
 \fBfedupdate\fR \- Cette commande met à jour un système FEDORA Linux.
 .SH SYNOPSIS
@@ -8,11 +8,11 @@
 .SH DESCRIPTION
 Si des nouveaux paquets \fBFLATPAKs\fR sont disponibles, une mise à jour est lancée.
 
-Si des nouveaux paquets \fBRPMs\fR sont disponibles, la commande va télécharger puis redémarrer le système pour une mise à jour hors-ligne.
+Si des nouveaux paquets \fBRPMs\fR sont disponibles, la commande va les télécharger puis redémarrer le système pour faire une mise à jour hors-ligne.
 
 Les erreurs de vérifications et de téléchargements sont gérées.
 
-La commande doit être lancée par un utilisateur normal disposant du droit d'élévation de privilège (via sudo).
+La commande doit être lancée par un utilisateur normal disposant du droit d'élévation de privilèges (via \fBsudo\fR).
 
 .SH OPTIONS
 .TP
@@ -58,6 +58,27 @@ Pour vérifier si des mises à jour sont disponibles et informer l'utilisateur p
 Pour contrôler les dépendances et afficher/créer un fichier de configuration
 
 .B fedupdate \-C
+
+Pour faire une mise à jour des RPMs uniquement, en mode pseudo-silencieux, sans mettre à jour le cache de dnf et sans conserver les logs
+
+.B fedupdate \-F -s -B -0
+
+
+.SH NOTES
+Le mode "contrôle de fonctionnement" (\fB-C\fR) va permettre de générer le fichier de configuration et de vérifier les dépendances.
+
+Le fichier de configuration conserve le mail nécessaire à l'option \fB-m\fR et le mot de passe de l'utilisateur de \fBfedupdate\fR.
+
+Ce mot de passe, utilisé par la commande \fBsudo\fR, peut-être stocké en clair, ou chiffré si la bibliothèque \fBopenssl\fR est installée.
+
+Le mode "notification par email" (\fB-m\fR) et le mode "notification système" (\fB-n\fR) ne sont appliqués qu'en mode "vérification" (\fB-c\fR). Ils sont ignorés sinon.
+
+Le mode "notification par email" (\fB-m\fR) n'est appliqué que si la commande est lancée en arrière plan (via une tâche cron ou une unité systemd).
+
+Le mode "notification par email" (\fB-m\fR) nécessite la commande \fBmail\fR et un MTA configuré (Mail Transport Agent, comme \fBmsmtp\fR ou \fBopensmtpd\fR).
+
+\fBfedupdate\fR utilise \fB/usr/bin/dnf4\fR (dnf5 n'est pas supporté pour le moment).
+
 
 .SH FILES
 .TP
