@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=1.20
+ver=1.25
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -218,6 +218,7 @@ UNALIAS() { # on desalias les commandes utilisées pour éviter un comportement 
 }
 ################################################################################################################################
 SUDOPASS() {
+	local pass=""
 	if ! sudo -n true 2>/dev/null; then # si sudo a besoin du mot de passe
 		if [ -f "$passwordencrypted" ]; then # mot de passe chiffré
 			if DECRYPT-PASS; then
@@ -225,22 +226,35 @@ SUDOPASS() {
 			else
 				CECHO "[WARN]" "$jaune" -n && echo -e " Erreur de déchiffrement du mot de passe de ${gras}$(whoami)${reinit}"
 				CECHO "[INFO]" "$vert" -n && echo -e " Vous pourrez lancer ${gras}${bleu}$scriptfullname -C${reinit} pour refaire le chiffrement."
+				CECHO "[INFO]" "$vert" -n && echo -e " On poursuit le déroulement de ${gras}${bleu}$scriptname${reinit}."
 				if [ "$terminal" != "dumb" ]; then
-					CECHO "[ACT.]" "$magenta" -n && sudo -p " Veuillez saisir le mot de passe de l'utilisateur $(whoami) (sudo) : " -S echo -n
+					CECHO "[ACT.]" "$magenta" -n && echo -ne " Veuillez saisir le mot de passe de ${gras}${bleu}$(whoami)${reinit} (sudo) : "
+					PASSWORD_INPUT pass
+					echo "$pass" | sudo -S echo -n > /dev/null 2>&1
 				else
 					echo " Le déchiffrement du mot de passe a échoué." | tee -a "$bigerror"
 					THE-END "des erreurs"
 					exit 1
 				fi
 			fi
-		else # mot de passe en clair
+		else # mot de passe en clair ou encrypté mais le fichier n'existe plus
 			if [ "$terminal" = "dumb" ]; then
-				echo "$password" | sudo -S echo -n
+				if [ "$password" != "" ] && [ "$password" != "***EnCrYpTed***" ] ; then
+					echo "$password" | sudo -S echo -n
+				else
+					echo " Le mot de passe n'est plus stocké. Veuillez relancer $scriptfullname -C pour recréer le fichier de configuration" | tee -a "$bigerror"
+					THE-END "des erreurs"
+					exit 1
+				fi
 			else
-	     		if [ "$password" != "" ]; then # le mdp existe on l'envoie à sudo
+	     		if [ "$password" != "" ] && [ "$password" != "***EnCrYpTed***" ] ; then # le mdp existe on l'envoie à sudo
 					echo "$password" | sudo -S echo -n > /dev/null 2>&1
 				else # le mdp n'existe pas on le demande à l'utilisateur
-					CECHO "[ACT.]" "$magenta" -n && sudo -p " Veuillez saisir le mot de passe de l'utilisateur $(whoami) (sudo) : " -S echo -n
+					CECHO "[WARN]" "$jaune" -n && echo -e " Le mot de passe n'est plus stocké. Il faudra relancer ${gras}${bleu}$scriptfullname -C${reinit} pour recréer le fichier de configuration."
+					CECHO "[INFO]" "$vert" -n && echo -e " On poursuit le déroulement de ${gras}${bleu}$scriptname${reinit}."
+					CECHO "[ACT.]" "$magenta" -n && echo -ne " Veuillez saisir le mot de passe de ${gras}${bleu}$(whoami)${reinit} (sudo) : "
+					PASSWORD_INPUT pass
+					echo "$pass" | sudo -S echo -n > /dev/null 2>&1
 				fi
 	        fi
 		fi
