@@ -1,0 +1,74 @@
+.TH \fBfedupdate\fR 1 "Octobre 2024" "v1.0" "Documentation utilisateur"
+.SH NAME
+\fBfedupdate\fR \- Cette commande met à jour un système FEDORA Linux.
+.SH SYNOPSIS
+.B fedupdate
+[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0]
+
+.SH DESCRIPTION
+Si des nouveaux paquets \fBFLATPAKs\fR sont disponibles, une mise à jour est lancée.
+
+Si des nouveaux paquets \fBRPMs\fR sont disponibles, la commande va télécharger puis redémarrer le système pour une mise à jour hors-ligne.
+
+Les erreurs de vérifications et de téléchargements sont gérées.
+
+La commande doit être lancée par un utilisateur normal disposant du droit d'élévation de privilège (via sudo).
+
+.SH OPTIONS
+.TP
+.B \-h
+Affiche l'aide.
+.TP
+.B \-C
+Affiche et/ou crée le fichier de configuration, puis contrôle les dépendances.
+.TP
+.B \-s
+Seules les erreurs et la liste de paquets seront affichées.
+.TP
+.B \-c
+Pour vérifier si des mises à jour sont disponibles sans les installer.
+.TP
+.B \-m
+Envoie un email si des mises à jour sont disponibles.
+.TP
+.B \-n
+Envoie une notification système si des mises à jour sont disponibles.
+.TP
+.B \-F
+Pour ignorer la gestion des FLATPAKs.
+.TP
+.B \-R
+Pour ignorer la gestion des RPMs.
+.TP
+.B \-d
+Pour faire une mise à jour directe, sans redémarrage, plutôt qu'une mise à jour hors-ligne.
+.TP
+.B \-B
+Pour ignorer la mise à jour forcée du cache de dnf.
+.TP
+.B \-0
+Pour détruire les logs.
+
+.SH EXAMPLES
+.PP
+Pour vérifier si des mises à jour sont disponibles et informer l'utilisateur par une notification système
+
+.B fedupdate \-n \-c
+
+Pour contrôler les dépendances et afficher/créer un fichier de configuration
+
+.B fedupdate \-C
+
+.SH FILES
+.TP
+.I $HOME/.config/fedupdate/config.rc
+Fichier de configuration principal pour \fBfedupdate\fR.
+.TP
+.I $HOME/.local/share/fedupdate
+Dossier des données de la commande \fBfedupdate\fR.
+
+.SH AUTHOR
+OLIVIER LORILLU
+
+.SH COPYRIGHT
+Copyright (C) OLIVIER LORILLU 2024. Ce script est distribué sous licence GPL v3.

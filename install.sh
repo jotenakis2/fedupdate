@@ -3,6 +3,8 @@ sudo cp -f fedupdate /usr/local/bin/
 sudo cp -f post-upgrade-message.sh /usr/local/bin/
 sudo chmod 755 /usr/local/bin/fedupdate 
 sudo chmod 755 /usr/local/bin/post-upgrade-message.sh
+sudo cp fedupdate.1 /usr/local/share/man/man1/
+sudo mandb
 # Unités Systemd user
 mkdir -p "$HOME"/.config/systemd/user 2>/dev/null
 cp -f checkupdate.* "$HOME"/.config/systemd/user/
