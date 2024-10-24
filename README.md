@@ -41,7 +41,7 @@ git clone https://codeberg.org/jotenakis/fedupdate.git && cd fedupdate && make u
 Tous les paquets installés par fedupdate seront supprimés sauf les données utilisateurs (qui peuvent être supprimés manuellement):
 
 ```
-rm -rf $HOME/.config/fedupdate/config.rc $HOME/.local/share/fedupdate/ 2>/dev/null
+rm -rf $HOME/.config/fedupdate/ $HOME/.local/share/fedupdate/ 2>/dev/null
 ```
 
 ## c'est quoi *fedupdate* ?
