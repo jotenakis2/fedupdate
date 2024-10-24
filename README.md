@@ -25,6 +25,9 @@ Le script d'installation va aussi installer trois unités systemd utilisateur :
 
 **postupgrade.service** : permet de vérifier, au 1er reboot, si une mise à jour hors-ligne s'est bien passée.
 
+
+Enfin, le script d'installation va installer une page de **man**.
+
 ## comment desinstaller *fedupdate* ?
 Désinstaller fedupdate nécessite que le paquet **make** soit installé.
 ```
