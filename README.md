@@ -38,7 +38,7 @@ git clone https://codeberg.org/jotenakis/fedupdate.git && cd fedupdate && make u
 Tous les paquets installés par fedupdate seront supprimés sauf les données utilisateurs (qui peuvent être supprimés manuellement):
 
 ```
-rm -f $HOME/.config/fedupdate/config.rc $HOME/.local/share/fedupdate/ 2>/dev/null
+rm -rf $HOME/.config/fedupdate/config.rc $HOME/.local/share/fedupdate/ 2>/dev/null
 ```
 
 ## c'est quoi *fedupdate* ?
@@ -93,6 +93,9 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 -   Le script utilise /usr/bin/dnf4 (dnf5 n'est pas supporté pour le moment).
 
 ## Dépendances
+-	Paquet obligatoire pour installation automatique :
+		make
+		
 -   Paquets obligatoires :
         bash, coreutils, dnf (v4), findutils, gawk, libnotify, ncurses, sed et sudo.
 
