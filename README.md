@@ -2,8 +2,13 @@
 Script **bash** de mise à jour de __Fedora Linux__ basé sur dnf et flatpak.
 
 ## comment installer *fedupdate* ?
+Installer fedupdate nécessite que le paquet **make** soit installé.
 ```
-git clone https://codeberg.org/jotenakis/fedupdate.git && cd fedupdate && chmod +x ./install.sh && ./install.sh
+sudo dnf install make
+```
+
+```
+git clone https://codeberg.org/jotenakis/fedupdate.git && cd fedupdate && make install
 ```
 Cela va installer *fedupdate* et *post-upgrade-message.sh* dans **/usr/local/bin**. 
 
@@ -20,6 +25,21 @@ Le script d'installation va aussi installer trois unités systemd utilisateur :
 
 **postupgrade.service** : permet de vérifier, au 1er reboot, si une mise à jour hors-ligne s'est bien passée.
 
+## comment desinstaller *fedupdate* ?
+Désinstaller fedupdate nécessite que le paquet **make** soit installé.
+```
+sudo dnf install make
+```
+
+```
+git clone https://codeberg.org/jotenakis/fedupdate.git && cd fedupdate && make uninstall
+```
+
+Tous les paquets installés par fedupdate seront supprimés sauf les données utilisateurs (qui peuvent être supprimés manuellement):
+
+```
+rm -f $HOME/.config/fedupdate/config.rc $HOME/.local/share/fedupdate/ 2>/dev/null
+```
 
 ## c'est quoi *fedupdate* ?
 Ce script vérifie si les paquets **RPMs**, et éventuellement **FLATPAKs**, de votre *Fedora Linux* nécessitent une mise à jour.
