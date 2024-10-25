@@ -48,6 +48,9 @@ Pour ignorer la mise à jour forcée du cache de dnf.
 .TP
 .B \-0
 Pour détruire les logs.
+.TP
+.B \-p
+Pour éteindre l'ordinateur après la mise à jour.
 
 .SH EXAMPLES
 .PP
@@ -59,9 +62,10 @@ Pour contrôler les dépendances et afficher/créer un fichier de configuration
 
 .B fedupdate \-C
 
-Pour faire une mise à jour des RPMs uniquement, en mode pseudo-silencieux, sans mettre à jour le cache de dnf et sans conserver les logs
+Pour faire une mise à jour des RPMs uniquement, en mode pseudo-silencieux, sans mettre à jour le cache de dnf, sans conserver les logs 
+et en éteignant la machine après la mise à jour
 
-.B fedupdate \-F -s -B -0
+.B fedupdate \-F \-s \-B \-0 \-p
 
 
 .SH NOTES

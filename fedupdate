@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=1.30
+ver=1.35
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -412,7 +412,7 @@ fi
 ################################################################################################################################
 USAGE() {
 	CECHO "[INFO]" "$vert" -n && \
-	echo -e " utilisation: ${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0]${reinit}"
+	echo -e " utilisation: ${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0] [-p]${reinit}"
 	return 0
 }
 ################################################################################################################################
@@ -421,7 +421,7 @@ DISPLAY-HELP() {
 	PRINTBANNER-CENTERED "AIDE" "." "$cyan"
 	echo -ne "$reinit"
 	cat <<< "$(echo -e "${bleu}${underline}UTILISATION${reinit}
-	${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0]${reinit}
+	${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0] [-p]${reinit}
 
 ${bleu}${underline}DESCRIPTION${reinit}
 	Ce script vérifie si les paquets ${jaune}RPMs${reinit}, et éventuellement ${jaune}FLATPAKs${reinit}, de votre ${jaune}${ID^}${reinit} (${gras}$host${reinit}) nécessitent ${gras}une mise à jour${reinit}.
@@ -442,7 +442,8 @@ ${bleu}${underline}OPTIONS${reinit}
         ${vert}-R   ${reinit}avec cette option, la gestion des ${jaune}RPMs${reinit} est désactivée ($modeR),
         ${vert}-d   ${reinit}avec cette option (${gras}non recommandée${reinit}), la mise à jour des ${jaune}RPMs${reinit} sera directe, c'est-à-dire en ligne ($modeD),
         ${vert}-B   ${reinit}avec cette option (${gras}non recommandée${reinit}), le script ne fera pas de mise à jour forcée du cache de ${gras}${bleu}dnf${reinit} ($modeB),
-        ${vert}-0   ${reinit}avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script ($mode0).
+        ${vert}-0   ${reinit}avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script ($mode0),
+        ${vert}-p   ${reinit}avec cette option, l'ordinateur sera éteint après la mise à jour ($modeP).
 
 ${bleu}${underline}FICHIERS${reinit}
 	- ${gras}${bleu}$config${reinit} : fichier de configuration de ${gras}${bleu}$scriptname${reinit}.
@@ -503,10 +504,15 @@ OFFLINE-UPGRADE() {
 		PRINTBANNER-CENTERED "" "." "$cyan"
 		CECHO "[INFO]" "$vert" -n && echo " Script terminé avec succès à $(DATE-ET-HEURE)."
 		CECHO "[INFO]" "$vert" -n && echo " L'ordinateur va redémarrer dans ${delay}s :"
-		COMPTEUR $delay $largeur "Redémarrage !" "$vert" "$rouge" "$cyan" "$cyan"
+		if [ "$poweroff" = "yes" ]; then
+			COMPTEUR $delay $largeur "Redémarrage pour mise à jour hors-ligne, puis arrêt de l'ordinateur..." "$vert" "$rouge" "$cyan" "$cyan"
+		else
+			COMPTEUR $delay $largeur "Redémarrage pour mise à jour hors-ligne, puis allumage de l'ordinateur..." "$vert" "$rouge" "$cyan" "$cyan"
+		fi
 		PRINTBANNER-CENTERED "" "*" "$gras$bleu"
 		touch "$offlineindicator"  # ce fichier sera détecté par un service systemd après reboot pour afficher un message
-		sleep 0.5 && sudo $dnf offline-upgrade reboot
+		sleep 0.5
+		if [ "$poweroff" = "yes" ]; then sudo $dnf offline-upgrade reboot --poweroff ; else sudo $dnf offline-upgrade reboot ; fi
 	else
 		if ASK-YESNO " Redémarrage annulé par l'utilisateur... " "$vert" " Voulez-vous supprimer les paquets téléchargés non installés (oui/non) ? " "$magenta" "[INFO]"; then
 			SUDOPASS
@@ -521,6 +527,8 @@ OFFLINE-UPGRADE() {
 }
 ################################################################################################################################
 ONLINE-UPGRADE() {
+	local delay=6
+	local largeur=42
 	CECHO "[INFO]" "$vert" -n && echo -n " Téléchargement des paquets et mise à jour directe "
 	{ trap STOP-SPINNER EXIT && START-SPINNER; }
 		# shellcheck disable=SC2024
@@ -534,6 +542,11 @@ ONLINE-UPGRADE() {
 		$bat "$logerror"
 		THE-END "des erreurs"
 		exit 1
+	fi
+	if [ "$poweroff" = "yes" ]; then
+		CECHO "[INFO]" "$vert" -n && echo " L'ordinateur va s'éteindre dans ${delay}s (argument ${vert}-p${reinit}) :"
+		COMPTEUR $delay $largeur "Extinction de l'ordinateur." "$vert" "$rouge" "$cyan" "$cyan"
+		sleep 0.5 && systemctl poweroff
 	fi
 	return 0
 }
@@ -709,6 +722,7 @@ GESTION-OPTIONS() {
 	[ "$nolog" = "yes"      ] && CECHO "[INFO]" "$vert" -n && echo -e " $mode0 (${vert}-0${reinit})."
 	[ "$directrpms" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeD (${vert}-d${reinit})."
 	[ "$nocacheupd" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeB (${vert}-B${reinit})."
+	[ "$poweroff" = "yes"   ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeP (${vert}-p${reinit})."
 
 	if [ -f "$config" ]; then
 		# shellcheck source=/dev/null
@@ -794,6 +808,7 @@ INIT() {
 	nocacheupd=""
 	email=""
 	password=""
+	poweroff=""
 	dnf="/usr/bin/dnf4"
 	modeS="${jaune}mode \"pseudo-silencieux\"${reinit}"
 	modeC="${jaune}mode \"vérification\"${reinit}"
@@ -805,6 +820,7 @@ INIT() {
 	modeD="${jaune}mode \"mise à jour directe\"${reinit}"
 	modeCC="${jaune}mode \"contrôle de fonctionnement\"${reinit}"
 	modeB="${jaune}mode \"pas de mise à jour du cache\"${reinit}"
+	modeP="${jaune}mode \"extinction\"${reinit}"
 	datadir="$HOME/.local/share/${scriptname}"
 	confdir="$HOME/.config/${scriptname}"
 	passwordencrypted="$datadir/.password.enc"
@@ -864,7 +880,7 @@ THE-END() {
 ################################################################################################################################
 INIT
 # capture de la ligne de commande (arguments courts)
-	while getopts ':shcmnFR0CdB' arguments; do
+	while getopts ':shcmnFR0CdBp' arguments; do
 		case "$arguments" in
 			s)	silent="yes"     ;;
 			h)  help="yes"       ;;
@@ -877,6 +893,7 @@ INIT
 			C)  checkdeps="yes"  ;;
 			d)  directrpms="yes" ;;
 			B)  nocacheupd="yes" ;;
+			p)  poweroff="yes" ;;
 			\?) error="yes"      ;;
 		esac
 	done
