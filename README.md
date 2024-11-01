@@ -10,14 +10,14 @@ sudo dnf install make
 ```
 git clone https://codeberg.org/jotenakis/fedupdate.git && cd fedupdate && make install
 ```
-Cela va installer *fedupdate* et *post-upgrade-message.sh* dans **/usr/local/bin**. 
+Cela va installer *fedupdate* et *post-upgrade-message.sh* dans **/usr/local/bin**.
 
 *fedupdate* est le script principal.
 
 *post-upgrade-message.sh* est un script permettant de savoir si une mise à jour hors-ligne s'est bien déroulée.
 
 
-Le script d'installation va aussi installer trois unités systemd utilisateur : 
+Le script d'installation va aussi installer trois unités systemd utilisateur :
 
 **checkupdate.service** : permet de lancer fedupdate en mode vérification uniquement avec notification système (*fedupdate* -c -n).
 
@@ -58,29 +58,29 @@ Les erreurs de vérifications et de téléchargements sont gérées.
 Le script doit être lancé par un utilisateur normal disposant du droit d'élévation de privilège (sudo).
 
 ## quelles sont les options de *fedupdate* ?
--   -h   affiche cette aide et quitte,
+-   -h,--help				affiche cette aide et quitte,
 
--   -C   affiche et/ou crée le fichier de configuration, puis contrôle les dépendances (**mode "contrôle du fonctionnement"**),
+-   -C,--checkdeps	affiche et/ou crée le fichier de configuration, puis contrôle les dépendances (**mode "contrôle du fonctionnement"**),
 
--   -s   avec cette option, seules les erreurs et la liste de paquets seront affichées (**mode "pseudo-silencieux"**),
+-   -s,--silent			avec cette option, seules les erreurs et la liste de paquets seront affichées (**mode "pseudo-silencieux"**),
 
--   -c   avec cette option, le script ne fera que vérifier si des mises à jour sont disponibles (**mode "vérification"**),
+-   -c,--check  		avec cette option, le script ne fera que vérifier si des mises à jour sont disponibles (**mode "vérification"**),
 
--   -m   avec cette option, le script envoie un email si des mises à jour sont disponibles (**mode "notification par email"**),
+-   -m,--email  		avec cette option, le script envoie un email si des mises à jour sont disponibles (**mode "notification par email"**),
 
--   -n   avec cette option, le script envoie une notification système si des mises à jour sont disponibles (**mode "notification système"**),
+-   -n,--notify  		avec cette option, le script envoie une notification système si des mises à jour sont disponibles (**mode "notification système"**),
 
--   -F   avec cette option, la gestion des FLATPAKs est désactivée (**mode "sans gestion des FLATPAKs"**),
+-   -F,--noflatpak	avec cette option, la gestion des FLATPAKs est désactivée (**mode "sans gestion des FLATPAKs"**),
 
--   -R   avec cette option, la gestion des RPMs est désactivée (**mode "sans gestion des RPMs"**),
+-   -R,--norpm			avec cette option, la gestion des RPMs est désactivée (**mode "sans gestion des RPMs"**),
 
--   -d   avec cette option (**non recommandée**), la mise à jour des RPMs sera directe, c'est-à-dire en ligne (**mode "mise à jour directe**"),
+-   -d,--direct			avec cette option (**non recommandée**), la mise à jour des RPMs sera directe, c'est-à-dire en ligne (**mode "mise à jour directe**"),
 
--   -B   avec cette option (**non recommandée**), le script ne fera pas de mise à jour forcée du cache de dnf (**mode "pas de mise à jour du cache"**),
+-   -B,--nocacheupd	avec cette option (**non recommandée**), le script ne fera pas de mise à jour forcée du cache de dnf (**mode "pas de mise à jour du cache"**),
 
--   -0   avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script (**mode "sans conservation des logs"**),
+-   -0,--nolog			avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script (**mode "sans conservation des logs"**),
 
--	-p   avec cette option, l'ordinateur sera éteint après la mise à jour (mode "extinction").
+-		-p,--poweroff		avec cette option, l'ordinateur sera éteint après la mise à jour (mode "extinction").
 
 ## Notes importantes
 -   Le mode "contrôle de fonctionnement" (-C) va permettre de générer le fichier de configuration et de vérifier les dépendances du script.
@@ -100,7 +100,7 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 ## Dépendances
 -	Paquet obligatoire pour installation automatique :
 		make
-		
+
 -   Paquets obligatoires :
         bash, coreutils, dnf (v4), findutils, gawk, libnotify, ncurses, sed et sudo.
 
