@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=1.50
+ver=1.51
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -898,7 +898,7 @@ GESTION-FPK() {
 				CECHO "[INFO]" "$vert" -n && echo -e " ${gras}Votre système ($host) est déjà à jour.${reinit}"
 			fi
 		fi
-		rm -f "$listtmp" 2>/dev/null || true
+		rm -f "$listtmpFP" 2>/dev/null || true
 	else
 		echo
 		CECHO "[INFO]" "$vert" -n && echo -e " La commande ${gras}${bleu}flatpak${reinit} n'est pas détectée sur ce système."
