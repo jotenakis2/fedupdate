@@ -58,29 +58,29 @@ Les erreurs de vérifications et de téléchargements sont gérées.
 Le script doit être lancé par un utilisateur normal disposant du droit d'élévation de privilège (sudo).
 
 ## quelles sont les options de *fedupdate* ?
--   -h,--help				<span style="margin-left: 40px;">affiche cette aide et quitte</span>,
+-   -h,--help :     affiche cette aide et quitte,
 
--   -C,--checkdeps			<span style="margin-left: 40px;">affiche et/ou crée le fichier de configuration, puis contrôle les dépendances (**mode "contrôle du fonctionnement"**)</span>,
+-   -C,--checkdeps :     affiche et/ou crée le fichier de configuration, puis contrôle les dépendances (**mode "contrôle du fonctionnement"**),
 
--   -s,--silent				avec cette option, seules les erreurs et la liste de paquets seront affichées (**mode "pseudo-silencieux"**),
+-   -s,--silent :     avec cette option, seules les erreurs et la liste de paquets seront affichées (**mode "pseudo-silencieux"**),
 
--   -c,--check  			avec cette option, le script ne fera que vérifier si des mises à jour sont disponibles (**mode "vérification"**),
+-   -c,--check :     avec cette option, le script ne fera que vérifier si des mises à jour sont disponibles (**mode "vérification"**),
 
--   -m,--email  			avec cette option, le script envoie un email si des mises à jour sont disponibles (**mode "notification par email"**),
+-   -m,--email :     avec cette option, le script envoie un email si des mises à jour sont disponibles (**mode "notification par email"**),
 
--   -n,--notify  			avec cette option, le script envoie une notification système si des mises à jour sont disponibles (**mode "notification système"**),
+-   -n,--notify :      avec cette option, le script envoie une notification système si des mises à jour sont disponibles (**mode "notification système"**),
 
--   -F,--noflatpak			avec cette option, la gestion des FLATPAKs est désactivée (**mode "sans gestion des FLATPAKs"**),
+-   -F,--noflatpak :     avec cette option, la gestion des FLATPAKs est désactivée (**mode "sans gestion des FLATPAKs"**),
 
--   -R,--norpm				avec cette option, la gestion des RPMs est désactivée (**mode "sans gestion des RPMs"**),
+-   -R,--norpm :     avec cette option, la gestion des RPMs est désactivée (**mode "sans gestion des RPMs"**),
 
--   -d,--direct				avec cette option (**non recommandée**), la mise à jour des RPMs sera directe, c'est-à-dire en ligne (**mode "mise à jour directe**"),
+-   -d,--direct :     avec cette option (**non recommandée**), la mise à jour des RPMs sera directe, c'est-à-dire en ligne (**mode "mise à jour directe**"),
 
--   -B,--nocacheupd			avec cette option (**non recommandée**), le script ne fera pas de mise à jour forcée du cache de dnf (**mode "pas de mise à jour du cache"**),
+-   -B,--nocacheupd :     avec cette option (**non recommandée**), le script ne fera pas de mise à jour forcée du cache de dnf (**mode "pas de mise à jour du cache"**),
 
--	-p,--poweroff			avec cette option, l'ordinateur sera éteint après la mise à jour (mode "extinction"),
+-   -p,--poweroff :     avec cette option, l'ordinateur sera éteint après la mise à jour (mode "extinction"),
 
--   -0,--nolog				avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script (**mode "sans conservation des logs"**).
+-   -0,--nolog :     avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script (**mode "sans conservation des logs"**).
 
 
 ## Notes importantes
