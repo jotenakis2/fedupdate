@@ -103,7 +103,7 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 		make
 
 -   Paquets obligatoires :
-        bash, coreutils, dnf (v4), findutils, gawk, libnotify, ncurses, sed et sudo.
+        bash, coreutils, dnf (v4), findutils, gawk, libnotify, ncurses, sed, sudo et util-linux.
 
 -   Paquets optionnels :
         s-nail, msmtp (ou opensmtpd), openssl et flatpak.
