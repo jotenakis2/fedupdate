@@ -3,7 +3,7 @@
 \fBfedupdate\fR \- Cette commande met à jour un système FEDORA Linux.
 .SH SYNOPSIS
 .B fedupdate
-[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0] [-p]
+[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0]
 
 .SH DESCRIPTION
 Si des nouveaux paquets \fBFLATPAKs\fR sont disponibles, une mise à jour est lancée.
@@ -16,41 +16,41 @@ La commande doit être lancée par un utilisateur normal disposant du droit d'é
 
 .SH OPTIONS
 .TP
-.B \-h
+.B \-h,--help
 Affiche l'aide.
 .TP
-.B \-C
+.B \-C,--checkdeps
 Affiche et/ou crée le fichier de configuration, puis contrôle les dépendances.
 .TP
-.B \-s
+.B \-s,--silent
 Seules les erreurs et la liste de paquets seront affichées.
 .TP
-.B \-c
+.B \-c,--check
 Pour vérifier si des mises à jour sont disponibles sans les installer.
 .TP
-.B \-m
+.B \-m,--email
 Envoie un email si des mises à jour sont disponibles.
 .TP
-.B \-n
+.B \-n,--notify
 Envoie une notification système si des mises à jour sont disponibles.
 .TP
-.B \-F
+.B \-F,--noflatpak
 Pour ignorer la gestion des FLATPAKs.
 .TP
-.B \-R
+.B \-R,--norpm
 Pour ignorer la gestion des RPMs.
 .TP
-.B \-d
+.B \-d,--direct
 Pour faire une mise à jour directe, sans redémarrage, plutôt qu'une mise à jour hors-ligne.
 .TP
-.B \-B
+.B \-B,--nocacheupd
 Pour ignorer la mise à jour forcée du cache de dnf.
 .TP
-.B \-0
+.B \-0,--nolog
 Pour détruire les logs.
 .TP
-.B \-p
-Pour éteindre l'ordinateur après la mise à jour.
+.B \-p,--poweroff
+Pour éteindre la machine après la mise à jour.
 
 .SH EXAMPLES
 .PP
@@ -58,14 +58,13 @@ Pour vérifier si des mises à jour sont disponibles et informer l'utilisateur p
 
 .B fedupdate \-n \-c
 
-Pour contrôler les dépendances et afficher/créer un fichier de configuration
+Pour contrôler les dépendances et afficher (ou re/créer) un fichier de configuration
 
 .B fedupdate \-C
 
-Pour faire une mise à jour des RPMs uniquement, en mode pseudo-silencieux, sans mettre à jour le cache de dnf, sans conserver les logs 
-et en éteignant la machine après la mise à jour
+Pour faire une mise à jour des RPMs uniquement, en mode pseudo-silencieux, sans mettre à jour le cache de dnf et sans conserver les logs
 
-.B fedupdate \-F \-s \-B \-0 \-p
+.B fedupdate \-F -s -B -0
 
 
 .SH NOTES
@@ -79,7 +78,7 @@ Le mode "notification par email" (\fB-m\fR) et le mode "notification système" (
 
 Le mode "notification par email" (\fB-m\fR) n'est appliqué que si la commande est lancée en arrière plan (via une tâche cron ou une unité systemd).
 
-Le mode "notification par email" (\fB-m\fR) nécessite la commande \fBmail\fR et un MTA configuré (Mail Transport Agent, comme \fBmsmtp\fR ou \fBopensmtpd\fR).
+Le mode "notification par email" (\fB-m\fR) nécessite la commande mail et un MTA configuré (Mail Transport Agent, comme \fBmsmtp\fR ou \fBopen\fR).
 
 \fBfedupdate\fR utilise \fB/usr/bin/dnf4\fR (dnf5 n'est pas supporté pour le moment).
 
