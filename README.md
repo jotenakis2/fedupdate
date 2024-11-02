@@ -58,9 +58,9 @@ Les erreurs de vérifications et de téléchargements sont gérées.
 Le script doit être lancé par un utilisateur normal disposant du droit d'élévation de privilège (sudo).
 
 ## quelles sont les options de *fedupdate* ?
--   -h,--help				affiche cette aide et quitte,
+-   -h,--help				<span style="margin-left: 40px;">affiche cette aide et quitte</span>,
 
--   -C,--checkdeps			affiche et/ou crée le fichier de configuration, puis contrôle les dépendances (**mode "contrôle du fonctionnement"**),
+-   -C,--checkdeps			<span style="margin-left: 40px;">affiche et/ou crée le fichier de configuration, puis contrôle les dépendances (**mode "contrôle du fonctionnement"**)</span>,
 
 -   -s,--silent				avec cette option, seules les erreurs et la liste de paquets seront affichées (**mode "pseudo-silencieux"**),
 
