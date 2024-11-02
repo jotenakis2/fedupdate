@@ -78,9 +78,10 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 -   -B,--nocacheupd	avec cette option (**non recommandée**), le script ne fera pas de mise à jour forcée du cache de dnf (**mode "pas de mise à jour du cache"**),
 
+-	-p,--poweroff		avec cette option, l'ordinateur sera éteint après la mise à jour (mode "extinction").
+
 -   -0,--nolog			avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script (**mode "sans conservation des logs"**),
 
--		-p,--poweroff		avec cette option, l'ordinateur sera éteint après la mise à jour (mode "extinction").
 
 ## Notes importantes
 -   Le mode "contrôle de fonctionnement" (-C) va permettre de générer le fichier de configuration et de vérifier les dépendances du script.
