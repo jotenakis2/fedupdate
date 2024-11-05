@@ -837,6 +837,7 @@ GESTION-RPM() {
 	echo
 	PRINTBANNER-CENTERED "GESTION DES RPMs" "." "$cyan"
 	if CHECKRPM; then
+		$bat "$list" || true
 		if [ -z "$checkonly" ]; then 	# mode normal
 			if [ "$directrpms" = "yes" ]; then
 				ONLINE-UPGRADE || true
@@ -845,7 +846,6 @@ GESTION-RPM() {
 			fi
 		else  							# mode checkonly
 			CECHO "[INFO]" "$vert" -n && echo " Des mises à jour sont disponibles."
-			$bat "$list" || true
 			[ "$notif" = "yes" ] && { GESTION-NOTIF "RPM" "$list" || true ;}
 			[ "$notif_email" = "yes" ] && { SEND-EMAIL "RPM" "$list" || true ;}
 		fi
