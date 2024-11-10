@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=1.52
+ver=1.55
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -12,13 +12,10 @@ set -euo pipefail
 cmdline="$*" 				# arguments de la ligne de commande
 scriptfullname="$0" 		# chemin complet du script
 scriptname="${0##*/}" 		# équivalent à basename $0, mais en pur bash.
-declare -i spinner_pid=1	# initialisation de la variable qui va contenir le PID pour tuer le spinner (cf START/STOP-SPINNER).
 
 
 
-
-
-################################################# Flatpak COMMANDS ##############################################################
+################################################# flatpak COMMANDS ##############################################################
 FPK_CHECKUPDCMD() {
 	if [ "$silent" = "yes"  ]; then
 		# en mode pseudosilencieux je n'affiche rien, je stocke les erreurs et la liste des upd et je met un spinner d'attente
@@ -52,9 +49,9 @@ FPK_UPDCMD() {
 	fi
 	return 0
 }
-#-------------------------------------------------------------------------------------------
 
-################################################# DNF COMMANDS #################################################################
+
+################################################# dnf COMMANDS #################################################################
 DNF_CLEANCMD() { # nettoyage complet du cache
 	if [ "$silent" = "yes"  ]; then
 		# en mode pseudosilencieux je n'affiche rien, je stocke les erreurs et la sortie.
@@ -81,7 +78,7 @@ DNF_CACHEUPDCMD() { # création du cache
 		echo -ne "$gris"
 		# en mode normal j'affiche tout en gris, je stocke les erreurs et la sortie, pas de spinner d'attente.
 		# shellcheck disable=SC2024
-		sudo dnf makecache > >(tee -a "$log") 2> >(tee -a "$logerror" >&2) || true
+		sudo $dnf makecache > >(tee -a "$log") 2> >(tee -a "$logerror" >&2) || true
 		echo -ne "$reinit"
 	fi
 return 0
@@ -138,9 +135,9 @@ return 0
 #-------------------------------------------------------------------------------------------
 DNF_OFF-REBOOTCMD() { # mise à jour offline - reboot
 	if [ "$poweroff" = "yes" ]; then
-		sudo $dnf offline-upgrade reboot --poweroff || true
+		sudo $dnf offline-upgrade -y reboot --poweroff || true
 	else
-		sudo $dnf offline-upgrade reboot || true
+		sudo $dnf offline-upgrade -y reboot || true
 	fi
 return 0
 }
@@ -320,7 +317,7 @@ CREATE-CONFIG() {
 					chmod 600 "$config" || true
 				fi
 			else
-				rm -f "$passwordencrypted" "$privatekey" "$privatekey.pub" 2>/dev/null || true
+				rm -f "$passwordencrypted" "$privatekey" "$privatekey.pub"
 				CECHO "[INFO]" "$vert" -n && echo " Le mot de passe est donc stocké en clair."
 				echo "password=\"${password}\"" >> "$config" || true
 				chmod 600 "$config" || true
@@ -328,7 +325,7 @@ CREATE-CONFIG() {
 		else #openssl n'est pas installé, on stocke en clair.
 			CECHO "[WARN]" "$jaune" -n
 			echo -e " Le paquet ${gras}${bleu}openssl${reinit} n'est pas installé, la fonction de stockage de chiffrement n'est pas disponible."
-			rm -f "$passwordencrypted" "$privatekey" "$privatekey.pub" 2>/dev/null || true
+			rm -f "$passwordencrypted" "$privatekey" "$privatekey.pub"
 			CECHO "[INFO]" "$vert" -n && echo " Le mot de passe est donc stocké en clair."
 			echo "password=\"${password}\"" >> "$config" || true
 			chmod 600 "$config" || return 1
@@ -688,9 +685,9 @@ OFFLINE-UPGRADE() {
 	local largeur=42
 	CECHO "[INFO]" "$vert" -n && echo -n " Téléchargement des paquets "
 	DNF_OFF-UPDATECMD
-	if [ "$silent" = "yes" ]; then
-		$bat "$list" || true
-	fi
+	#if [ "$silent" = "yes" ]; then
+	#	$bat "$list" || true
+	#fi
 	# Gestion des erreurs de téléchargement
 	if [ -s "$logerror" ]; then
 		echo
@@ -703,26 +700,24 @@ OFFLINE-UPGRADE() {
 	fi
 	if ASK-YESNO " Le script va maintenant redémarrer le système et faire la mise à jour hors-ligne." "$vert" " Êtes-vous d'accord (oui/non) ? " "$magenta" "[INFO]"; then
 		echo
-		PRINTBANNER-CENTERED "" "." "$cyan"
-		CECHO "[INFO]" "$vert" -n && echo " Script terminé avec succès à $(DATE-ET-HEURE)."
+		THE-END "succès" || true
 		CECHO "[INFO]" "$vert" -n && echo " L'ordinateur va redémarrer dans ${delay}s :"
 		if [ "$poweroff" = "yes" ]; then
 			COMPTEUR $delay $largeur "Redémarrage pour la mise à jour hors-ligne, puis arrêt de l'ordinateur..." "$vert" "$rouge" "$cyan" "$cyan" || true
 		else
 			COMPTEUR $delay $largeur "Redémarrage pour la mise à jour hors-ligne, puis allumage de l'ordinateur..." "$vert" "$rouge" "$cyan" "$cyan" || true
 		fi
-		PRINTBANNER-CENTERED "" "*" "$gras$bleu"
 		touch "$offlineindicator" || true  # Ce fichier sera détecté par un service systemd après reboot pour afficher un message
-		sleep 0.5 || true
-		DNF_OFF-REBOOTCMD
+		sleep 2 || true
+		DNF_OFF-REBOOTCMD || true
 	else
 		if ASK-YESNO " Redémarrage annulé par l'utilisateur... " "$vert" " Voulez-vous supprimer les paquets téléchargés non installés (oui/non) ? " "$magenta" "[INFO]"; then
 			SUDOPASS
-			DNF_OFF-CLEANCMD
+			DNF_OFF-CLEANCMD || true
 			CECHO "[INFO]" "$vert" -n && echo " Tous les paquets du cache de mise à jour hors-ligne ont été effacés."
 		else
 			CECHO "[INFO]" "$vert" -n && echo " Vous pouvez utiliser la commande suivante pour terminer manuellement la mise à jour :"
-			echo -e "${bleu}	sudo dnf offline-upgrade reboot${reinit}"
+			echo -e "${bleu}	sudo dnf offline-upgrade -y reboot${reinit}"
 			CECHO "[INFO]" "$vert" -n && echo " Vous pouvez utiliser la commande suivante pour supprimer manuellement les paquets téléchargés :"
 			echo -e "${bleu}	sudo dnf offline-upgrade clean${reinit}"
 		fi
@@ -784,7 +779,7 @@ GESTION-NOTIF() {
 	# Extract and format list for the notification
 	awk '{print $1}' "$liste" | sort -u | sed -E 's/\.aarch64$//; s/\.noarch$//; s/^org\.//' > "$tmp" || true
 	messagelong=$(tr '\n' ',' < "$tmp" | sed 's/,/,   /g' | sed 's/[[:space:]]*,[[:space:]]*$/ /') || messagelong="(Liste indisponible)"
-	rm -f "$tmp" 2>/dev/null || true
+	rm -f "$tmp"
 
 	# Wait for D-Bus notifications to be ready (max 9 attempts)
 	while ! dbus-send --session --dest=org.freedesktop.notifications --type=method_call \
@@ -814,7 +809,7 @@ CHECKRPM() {
 	DNF_CHECKUPDCMD
 	# Format and filter list of updates
 	awk '{printf "%-45s %-7s\n", $1, $2}' "$listtmp" | grep -v '^[[:space:]]*$' > "$list" || true
-	rm -f "$listtmp" 2>/dev/null || true
+	rm -f "$listtmp"
 	# Check for errors and output results
 	if [ -s "$logerror" ]; then
 		CECHO "[ERR.]" "$rouge" -n && echo " La vérification a échoué."
@@ -837,7 +832,9 @@ GESTION-RPM() {
 	echo
 	PRINTBANNER-CENTERED "GESTION DES RPMs" "." "$cyan"
 	if CHECKRPM; then
-		$bat "$list" || true
+		if [ ! -z "$silent" ]; then
+			$bat "$list" || true
+		fi
 		if [ -z "$checkonly" ]; then 	# mode normal
 			if [ "$directrpms" = "yes" ]; then
 				ONLINE-UPGRADE || true
@@ -875,9 +872,7 @@ GESTION-FPK() {
 		else
 			if [ -s "$listtmpFP" ]; then # fichier non vide donc il y a des maj
 				# Display logs based on `silent` mode
-				if [ -z "$silent" ]; then
-					$bat "$logFP" || true
-				else
+				if [ ! -z "$silent" ]; then
 					$bat "$listFP" || true
 				fi
 				if [ -z "$checkonly" ]; then
@@ -898,7 +893,7 @@ GESTION-FPK() {
 				CECHO "[INFO]" "$vert" -n && echo -e " ${gras}Votre système ($host) est déjà à jour.${reinit}"
 			fi
 		fi
-		rm -f "$listtmpFP" 2>/dev/null || true
+		#rm -f "$listtmpFP"
 	else
 		echo
 		CECHO "[INFO]" "$vert" -n && echo -e " La commande ${gras}${bleu}flatpak${reinit} n'est pas détectée sur ce système."
@@ -992,14 +987,79 @@ GESTION-OPTIONS() {
 	return 0
 }
 ################################################################################################################################
+LOG-ROTATE() {
+    declare -i max_logs=10
+    local -A log_prefixes=(
+        [log]="$log"
+        [logFP]="$logFP"
+        [logerror]="$logerror"
+        [logerrorFP]="$logerrorFP"
+        [bigerror]="$bigerror"
+    )
+    for key in "${!log_prefixes[@]}"; do
+        local prefix="${log_prefixes[$key]}"
+        # Supprime le fichier de log le plus ancien s'il existe (par exemple, .log.(max_logs-1))
+        local oldest_log="$datadir/${prefix}.log.$((max_logs - 1))"
+        if [[ -e "$oldest_log" ]]; then
+            rm -f "$oldest_log" || { echo "Échec lors de la suppression de $oldest_log" >&2; return 1; }
+        fi
+        # Décale les fichiers de log existants d'un suffixe, en commençant par le suffixe le plus élevé jusqu'à .log.1
+        for (( i=max_logs-2; i>=1; i-- )); do
+            local old_log="$datadir/${prefix}.log.$i"
+            local new_log="$datadir/${prefix}.log.$((i + 1))"
+            if [[ -e "$old_log" ]]; then
+                mv "$old_log" "$new_log" || { echo "Échec lors du renommage de $old_log en $new_log" >&2; return 1; }
+            fi
+        done
+        # Renomme le fichier .log actuel en .log.1 s'il existe
+        if [[ -e "$datadir/${prefix}.log" ]]; then
+            mv "$datadir/${prefix}.log" "$datadir/${prefix}.log.1" || { echo "Échec lors du renommage de ${prefix}.log en ${prefix}.log.1" >&2; return 1; }
+        fi
+        # Met à jour la variable globale pour qu'elle pointe vers le fichier de log actuel, qui est toujours .log
+        eval "$key=\"$datadir/${prefix}.log\""
+    done
+}
+################################################################################################################################
+INIT-LOGS() {
+	datadir="$HOME/.local/share/${scriptname}"
+	confdir="$HOME/.config/${scriptname}"
+	# Ensure data and config directories exist
+	[ ! -d "$datadir" ] && { mkdir -p "$datadir" || true ;}
+	[ ! -d "$confdir" ] && { mkdir -p "$confdir" || true ;}
+	passwordencrypted="$datadir/.password.enc"
+	privatekey="$datadir/.${scriptname}_rsa.pem"
+	config="$confdir/config.rc"
+	log="${scriptname}-RPM"
+	logFP="${scriptname}-Flatpak"
+	logerrorFP="${scriptname}-Flatpak.error"
+	logerror="${scriptname}-RPM.error"
+	bigerror="${scriptname}.error"
+	list="$datadir/RPMs.tmp.list"
+	listFP="$datadir/Flatpaks.tmp.list"
+	LOG-ROTATE || true
+	rm -f "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP"
+	touch "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP" || { echo "Echec lors de la création des logs" >&2; return 1; }
+	chmod 644 "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP" || { echo "Echec lors de la création des droits" >&2; return 1; }
+}
+################################################################################################################################
+VIEWER() {
+	if EXISTS bat; then
+			bat="bat --paging=never"
+	else
+			bat="cat"
+	fi
+}
+################################################################################################################################
 INIT() {
-	local fiche
 	UNALIAS || true
-	# Initialize global variables
-	declare -i days_since_install=0
+
+# Initialisation des variables globales
+	dnf="/usr/bin/dnf5"
+	declare -gi days_since_install=0
+	declare -gi spinner_pid=1	# variable qui va contenir le PID pour tuer le spinner (cf START/STOP-SPINNER).
+	day=""
 	terminal="$TERM"
 	INITCOLOR || true
-	day=""
 	datecreated=""
 	help=""
 	silent=""
@@ -1015,7 +1075,6 @@ INIT() {
 	email=""
 	password=""
 	poweroff=""
-	dnf="/usr/bin/dnf4"
 	modeS="${jaune}mode \"pseudo-silencieux\"${reinit}"
 	modeC="${jaune}mode \"vérification\"${reinit}"
 	modeM="${jaune}mode \"notification par email\"${reinit}"
@@ -1027,45 +1086,21 @@ INIT() {
 	modeCC="${jaune}mode \"contrôle de fonctionnement\"${reinit}"
 	modeB="${jaune}mode \"pas de mise à jour du cache\"${reinit}"
 	modeP="${jaune}mode \"extinction\"${reinit}"
-	datadir="$HOME/.local/share/${scriptname}"
-	confdir="$HOME/.config/${scriptname}"
-	passwordencrypted="$datadir/.password.enc"
-	privatekey="$datadir/.${scriptname}_rsa.pem"
-	log="$datadir/${scriptname}-RPM.log"
-	logFP="$datadir/${scriptname}-Flatpak.log"
-	logerrorFP="$datadir/${scriptname}-Flatpak.error"
-	logerror="$datadir/${scriptname}-RPM.error"
-	bigerror="$datadir/${scriptname}.error"
-	list="$datadir/${scriptname}-RPMs-to-update.txt"
-	listFP="$datadir/${scriptname}-Flatpaks-to-update.txt"
 	offlineindicator="$HOME/.offline-upgrade"
-	config="$confdir/config.rc"
-	# Remove any old log files
-	for fiche in "$log" "$logFP" "$list" "$listFP" "$logerror" "$logerrorFP"; do rm -f "$fiche" 2>/dev/null || true; done
-	echo "$terminal" > "$datadir/.term" || true
-	# shellcheck source=/dev/null
-	source "/etc/os-release" || true
 
-	# Ensure data and config directories exist
-	[ ! -d "$datadir" ] && { mkdir -p "$datadir" || true ;}
-	[ ! -d "$confdir" ] && { mkdir -p "$confdir" || true ;}
-	[ ! -f "$bigerror" ] && { touch "$bigerror" || true ;}
+# Initialisation des logs et du viewer
+	INIT-LOGS || true
+	VIEWER || true
 
-	# Determine which viewer to use for logs
-	if EXISTS bat; then
-		bat="bat --paging=never" || bat="cat"
-	else
-		bat="cat"
-	fi
-
-	# Initial display
+# Affichage initial
 	if [ "$terminal" = "dumb" ]; then
 		sleep 10 || true
 	else
 		CLEAR || true
 	fi
-
-	# System information
+		# shellcheck source=/dev/null
+	source "/etc/os-release" || true
+	rm -f "$datadir/.term"
 	INSTALLED_DISTRO || true
 	HOSTNAME || true
 	PRINTBANNER-CENTERED " MISE À JOUR de $NAME $VERSION " "*" "$gras$bleu"
@@ -1077,37 +1112,42 @@ INIT() {
 	fi
 	CECHO "[INFO]" "$vert" -n && echo -e " Ligne de commande : ${gras}${bleu}${scriptfullname}${reinit} ${gras}${vert}${cmdline}${reinit}"
 
-	# check dependances
+# controle des dependances
 	CHECK || true
 	return 0
 }
 ################################################################################################################################
-THE-END() {
+CLEAR-LOGS() {
 	local fiche
+	nblog=0
+	listlog=""
+	rm -f "$list" "$listFP"
+	for fiche in "$logerrorFP" "$logerror" "$log" "$logFP" "$bigerror"; do
+		if [ "$nolog" = "yes" ]; then
+			rm -f "$fiche"
+		else
+			if [ ! -s "$fiche" ]; then # suppression si vide
+				rm -f "$fiche"
+			else # on compte le nb de log, on ajoute la date ; et on les concatène pour afficher
+				nblog=$(( nblog + 1 ))
+				echo >> "$fiche"
+				DATE-ET-HEURE >> "$fiche"
+				listlog="${listlog}${fiche} "
+			fi
+		fi
+	done
+}
+################################################################################################################################
+THE-END() {
 	echo
-	if [ "$nolog" = "yes" ]; then
-		rm -f "$datadir"/* || true
-	else
-		# Only remove empty log files
-		for fiche in "$logerrorFP" "$logerror" "$log" "$logFP" "$bigerror" "$list" "$listFP"; do
-			[ ! -s "$fiche" ] && { rm -f "$fiche" 2>/dev/null || true ;}
-		done
-	fi
-
+	CLEAR-LOGS
 	# Display available logs
 	PRINTBANNER-CENTERED "" "." "$cyan"
-	declare -i nblog=0
-	nblog=$(ls "$datadir" 2>/dev/null | wc -l)
 	case $nblog in
 		0) echo -n ;;
-		1) CECHO "[INFO]" "$vert" -n ; find "$datadir" -type f ! -name '.*' -print0 | xargs -0 echo " Log : " || true ;;
-		*) CECHO "[INFO]" "$vert" -n ; find "$datadir" -type f ! -name '.*' -print0 | xargs -0 echo " Logs : " || true ;;
+		1) CECHO "[INFO]" "$vert" -n ; echo " Log : $listlog" || true ;;
+		*) CECHO "[INFO]" "$vert" -n ; echo " Logs : $listlog" || true ;;
 	esac
-#	[ -n "$(ls "$datadir" 2>/dev/null)" ] && {
-#		CECHO "[INFO]" "$vert" -n
-#		find "$datadir" -type f ! -name '.*' -print0 | xargs -0 echo " Log : " || true
-#	}
-
 	# Final message
 	CECHO "[INFO]" "$vert" -n && echo -e " Script terminé avec $1 à $(DATE-ET-HEURE)."
 	PRINTBANNER-CENTERED "" "*" "$gras$bleu"
@@ -1120,6 +1160,10 @@ ERROR-ARGS() {
 	THE-END "des erreurs" || true
 	exit 1
 }
+################################################################################################################################
+
+
+
 ################################################################################################################################
 #                   CORPS DU SCRIPT                                                                                            #
 ################################################################################################################################
