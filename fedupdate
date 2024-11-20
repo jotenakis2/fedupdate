@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=1.55
+ver=1.59
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -21,13 +21,13 @@ FPK_CHECKUPDCMD() {
 		# en mode pseudosilencieux je n'affiche rien, je stocke les erreurs et la liste des upd et je met un spinner d'attente
 		{ trap STOP-SPINNER EXIT && START-SPINNER; }
 			# shellcheck disable=SC2024
-			flatpak update >"$listtmpFP" 2>>"$logerrorFP" || true
+			flatpak update -y >"$listtmpFP" 2>>"$logerrorFP" || true
 		{ STOP-SPINNER && echo "terminée."; }
 	else
 		# en mode normal, j'affiche tout en gris, je stocke les erreurs et la liste des upd (nettoyée)")
 		echo -e "$gris"
 		# shellcheck disable=SC2024
-		flatpak update > >(tee "$listtmpFP") 2> >(tee -a "$logerrorFP" >&2) || true
+		flatpak update -y > >(tee "$listtmpFP") 2> >(tee -a "$logerrorFP" >&2) || true
 		echo -ne "$reinit"
 	fi
 	cat "$listtmpFP" >> "$logFP"
@@ -49,6 +49,28 @@ FPK_UPDCMD() {
 	fi
 	return 0
 }
+#-------------------------------------------------------------------------------------------
+FPK_CHANGELOG() {
+	local updates
+	local package
+	local repo
+	updates=$(awk '{print $1}' "$listFP")
+	[[ -z "$updates" ]] && return 0
+	for package in $updates; do
+		# Get repo info; exit with error if the command fails
+		repo=$(flatpak info --show-origin "$package") || {
+			echo "Echec lors de la récupération du nom du repo de : $package" >&2 >> "$logFP"
+			return 1
+		}
+		# Get log info for the package; exit with error if the command fails
+		flatpak remote-info --log "$repo" "$package" || {
+			echo "Echec lors de la récupération des infos de : $package" >&2 >> "$logFP"
+			return 1
+		}
+	done
+	return 0
+}
+#-------------------------------------------------------------------------------------------
 
 
 ################################################# dnf COMMANDS #################################################################
@@ -89,16 +111,16 @@ DNF_CHECKUPDCMD() { # vérification de la présence de mise à jour
 		# en mode pseudosilencieux je n'affiche rien, je stocke les erreurs et la liste des upd et je met un spinner d'attente
 		{ trap STOP-SPINNER EXIT && START-SPINNER; }
 			# shellcheck disable=SC2024
-			sudo $dnf check-update -q >"$listtmp" 2>>"$logerror" || true
+			sudo $dnf check-update -q $changelog >"$listtmp" 2>>"$logerror" || true
 		{ STOP-SPINNER && echo "terminée."; }
 	else
 		# en mode normal, j'affiche tout en gris, je stocke les erreurs et la liste des upd (nettoyée)")
 		echo -e "$gris"
 		# shellcheck disable=SC2024
-		sudo $dnf check-update -q > >(tee "$listtmp" | sed '/^$/d') 2> >(tee -a "$logerror" >&2) || true
+		sudo $dnf check-update -q $changelog > >(tee "$listtmp" | sed '/^$/d') 2> >(tee -a "$logerror" >&2) || true
 		echo -ne "$reinit"
 	fi
-	cat "$listtmp" >> "$log"
+	sed '/^Changelogs/ {x;p;x}' "$listtmp" >> "$log"
 	sed -i '/^$/d' "$listtmp"
 	return 0
 }
@@ -368,7 +390,7 @@ CHECK() {
 		else
 			CECHO "[INFO]" "$vert" -n && echo -e " Voici la liste des ${gras}${jaune}paquets requis${reinit} pour que ce script fonctionne :"
 		fi
-		echo -e "	${gras}${bleu}bash${reinit}, ${gras}${bleu}coreutils${reinit}, ${gras}${bleu}dnf${reinit} (v4), ${gras}${bleu}findutils${reinit}, ${gras}${bleu}gawk${reinit}, ${gras}${bleu}libnotify${reinit}, ${gras}${bleu}ncurses${reinit}, ${gras}${bleu}sed${reinit}, ${gras}${bleu}sudo${reinit} et ${gras}${bleu}util-linux${reinit}."
+		echo -e "	${gras}${bleu}bash${reinit}, ${gras}${bleu}coreutils${reinit}, ${gras}${bleu}dnf${reinit}, ${gras}${bleu}findutils${reinit}, ${gras}${bleu}gawk${reinit}, ${gras}${bleu}libnotify${reinit}, ${gras}${bleu}ncurses${reinit}, ${gras}${bleu}sed${reinit}, ${gras}${bleu}sudo${reinit} et ${gras}${bleu}util-linux${reinit}."
 
 		CECHO "[INFO]" "$vert" -n && echo -e " Voici la liste des ${gras}${jaune}paquets requis trouvés${reinit} sur ${gras}$host${reinit} :"
 		$dnf list --installed | grep --color -E '^(bash|coreutils|dnf|findutils|gawk|libnotify|ncurses|sed|sudo|util-linux)\.' || true
@@ -610,7 +632,7 @@ STOP-SPINNER() {
 ################################################################################################################################
 USAGE() {
 	CECHO "[INFO]" "$vert" -n && \
-	echo -e " utilisation: ${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0] [-p]${reinit}"
+	echo -e " utilisation: ${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0] [-p] [-L]${reinit}"
 	CECHO "[INFO]" "$vert" -n && echo -e " Arguments longs également possibles, voir ${gras}${bleu}${scriptfullname} --help${reinit}."
 	return 0
 }
@@ -620,7 +642,7 @@ DISPLAY-HELP() {
 	PRINTBANNER-CENTERED "AIDE" "." "$cyan"
 	echo -ne "$reinit" || true
 	cat <<< "$(echo -e "${bleu}${underline}UTILISATION${reinit}
-	${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0] [-p] ${reinit}(ou arguments longs)
+	${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0] [-p] [-L]${reinit} (ou arguments longs)
 
 ${bleu}${underline}DESCRIPTION${reinit}
 	Ce script vérifie si les paquets ${jaune}RPMs${reinit}, et éventuellement ${jaune}FLATPAKs${reinit}, de votre ${jaune}${ID^}${reinit} (${gras}$host${reinit}) nécessitent ${gras}une mise à jour${reinit}.
@@ -628,7 +650,7 @@ ${bleu}${underline}DESCRIPTION${reinit}
 	Si des paquets ${jaune}RPMs${reinit} sont disponibles, ${gras}il les télécharge puis redémarre le système pour une mise à jour hors-ligne (plus sûre)${reinit}.
 	Le script utilise seulement des commandes ${gras}${bleu}dnf${reinit} et, éventuellement, ${gras}${bleu}flatpak${reinit} (PackageKit non-requis).
 	Les erreurs de vérifications et de téléchargements sont gérées.
-	Le script doit être lancé par un ${gras}utilisateur normal${reinit} disposant du droit d'élévation de privilège (${gras}${bleu}sudo${reinit}).
+	Le script doit être lancé par un ${gras}utilisateur normal${reinit} disposant du droit d'élévation de privilèges (${gras}${bleu}sudo${reinit}).
 
 ${bleu}${underline}OPTIONS${reinit}
         ${vert}-h, --help        ${reinit}affiche cette ${jaune}aide${reinit} et quitte,
@@ -642,12 +664,16 @@ ${bleu}${underline}OPTIONS${reinit}
         ${vert}-d, --direct      ${reinit}avec cette option (${gras}non recommandée${reinit}), la mise à jour des ${jaune}RPMs${reinit} sera directe, c'est-à-dire en ligne ($modeD),
         ${vert}-B, --nocacheupd  ${reinit}avec cette option (${gras}non recommandée${reinit}), le script ne fera pas de mise à jour forcée du cache de ${gras}${bleu}dnf${reinit} ($modeB),
         ${vert}-0, --nolog       ${reinit}avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script ($mode0),
-        ${vert}-p, --poweroff    ${reinit}avec cette option, l'ordinateur sera éteint après la mise à jour ($modeP).
+        ${vert}-p, --poweroff    ${reinit}avec cette option, l'ordinateur sera éteint après la mise à jour ($modeP),
+        ${vert}-L, --changelog   ${reinit}avec cette option, le script va afficher la liste des modifications apportées par les mises à jour des ${jaune}RPMs${reinit} ($modeCL),
+        ${vert}-4, --forcednf4   ${reinit}avec cette option, le script va utiliser la commande ${gras}${bleu}dnf4${reinit} ($mode4),
+        ${vert}-5, --forcednf5   ${reinit}avec cette option, le script va utiliser la commande ${gras}${bleu}dnf5${reinit} ($mode5).
+
 
 ${bleu}${underline}FICHIERS${reinit}
 	- ${gras}${bleu}$config${reinit} : fichier de configuration de ${gras}${bleu}$scriptname${reinit}.
-	- ${gras}${bleu}$list${reinit} : liste des paquets ${jaune}RPMs${reinit} à mettre à jour.
-	- ${gras}${bleu}$listFP${reinit} : liste des paquets ${jaune}FLATPAKs${reinit} à mettre à jour.
+	- ${gras}${bleu}$log${reinit} : le fichier de log ${jaune}RPMs${reinit} de la dernière exécution de ${gras}${bleu}$scriptname${reinit}.
+	- ${gras}${bleu}$logFP${reinit} : le fichier de log ${jaune}FLATPAKs${reinit} de la dernière exécution de ${gras}${bleu}$scriptname${reinit}.
 
 ${bleu}${underline}NOTES${reinit}
 	- Le $modeCC (${vert}-C${reinit}) va permettre de générer le fichier de configuration et de vérifier les dépendances du script.
@@ -656,7 +682,8 @@ ${bleu}${underline}NOTES${reinit}
 	- Le $modeM (${vert}-m${reinit}) et le $modeN (${vert}-n${reinit}) ne sont appliqués qu'en $modeC (${vert}-c${reinit}). Ils sont ignorés sinon.
 	- Le $modeM (${vert}-m${reinit}) n'est appliqué que si le script est lancé en arrière plan (via une tâche cron ou une unité systemd).
 	- Le $modeM (${vert}-m${reinit}) nécessite la commande ${gras}${bleu}mail${reinit} et un MTA configuré (Mail Transport Agent, comme ${gras}${bleu}msmtp${reinit} ou ${gras}${bleu}opensmtpd${reinit}).
-	- Le script utilise ${gras}${bleu}$(which dnf4)${reinit} (${gras}${bleu}dnf5${reinit} n'est pas supporté pour le moment).
+	- Une rotation des logs est effectuée dans ${gras}${bleu}$datadir${reinit} à chaque exécution de ${gras}${bleu}$scriptname${reinit}.
+	- ${gras}9 logs${reinit} ${jaune}RPMs${reinit} et ${gras}9 logs${reinit} ${jaune}FLATPAKs${reinit} sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 ")" || true
 	THE-END "succès" || true
 	exit 0
@@ -707,7 +734,7 @@ OFFLINE-UPGRADE() {
 		else
 			COMPTEUR $delay $largeur "Redémarrage pour la mise à jour hors-ligne, puis allumage de l'ordinateur..." "$vert" "$rouge" "$cyan" "$cyan" || true
 		fi
-		touch "$offlineindicator" || true  # Ce fichier sera détecté par un service systemd après reboot pour afficher un message
+		echo "$dnf" > "$offlineindicator" || true  # Ce fichier sera détecté par un service systemd après reboot pour afficher un message
 		sleep 2 || true
 		DNF_OFF-REBOOTCMD || true
 	else
@@ -808,8 +835,10 @@ CHECKRPM() {
 	CECHO "[INFO]" "$vert" -n && echo -n " Vérification des paquets disponibles "
 	DNF_CHECKUPDCMD
 	# Format and filter list of updates
-	awk '{printf "%-45s %-7s\n", $1, $2}' "$listtmp" | grep -v '^[[:space:]]*$' > "$list" || true
+	#sed '/^Changelogs/,$d' "$listtmp" | awk '{printf "%-45s %-7s\n", $1, $2}' | grep -v '^[[:space:]]*$' | sed 's/^/  /' > "$list" || true
+	awk '/^Changelogs/ {exit} {if (NF > 0) printf "  %-45s %-7s\n", $1, $2}' "$listtmp" > "$list" || true
 	rm -f "$listtmp"
+	unset listtmp
 	# Check for errors and output results
 	if [ -s "$logerror" ]; then
 		CECHO "[ERR.]" "$rouge" -n && echo " La vérification a échoué."
@@ -832,7 +861,7 @@ GESTION-RPM() {
 	echo
 	PRINTBANNER-CENTERED "GESTION DES RPMs" "." "$cyan"
 	if CHECKRPM; then
-		if [ ! -z "$silent" ]; then
+		if [ -n "$silent" ]; then
 			$bat "$list" || true
 		fi
 		if [ -z "$checkonly" ]; then 	# mode normal
@@ -855,25 +884,30 @@ GESTION-RPM() {
 GESTION-FPK() {
 	listtmpFP="/tmp/listFP.tmp"
 	if EXISTS flatpak; then
+		INIT-LOGFP || true
 		echo
-		local updatescmd
 		PRINTBANNER-CENTERED "GESTION DES FLATPAKs" "." "$cyan"
-
 		# Check for available updates
 		CECHO "[INFO]" "$vert" -n && echo -n " Vérification des paquets disponibles "
 		FPK_CHECKUPDCMD
-		cat "$listtmpFP" | awk '{printf "%-45s %-7s\n", $2, $3}' > "$listFP" || true
-
+		#cat "$listtmpFP" | awk '{printf "%-45s %-7s\n", $2, $3}' | sed 's/^/  /' > "$listFP" || true
+		#awk '{printf "%-45s %-7s\n", $2, $3}' "$listtmpFP" | sed 's/^/  /' > "$listFP" || true
+		awk '{printf "  %-45s %-7s\n", $2, $3}' "$listtmpFP" > "$listFP" || true
+		rm -f "$listtmpFP"
+		unset listtmpFP
 		# Check for verification errors
 		if [ -s "$logerrorFP" ]; then
 			CECHO "[ERR.]" "$rouge" -n && echo " La vérification a échoué :"
 			$bat "$logerrorFP" || true
 			echo
 		else
-			if [ -s "$listtmpFP" ]; then # fichier non vide donc il y a des maj
+			if [ -s "$listFP" ]; then # fichier non vide donc il y a des maj
 				# Display logs based on `silent` mode
-				if [ ! -z "$silent" ]; then
+				if [ -n "$silent" ]; then
 					$bat "$listFP" || true
+				fi
+				if [ "$changelog" = "--changelogs" ]; then
+					FPK_CHANGELOG || true
 				fi
 				if [ -z "$checkonly" ]; then
 					# Download and install updates
@@ -893,7 +927,6 @@ GESTION-FPK() {
 				CECHO "[INFO]" "$vert" -n && echo -e " ${gras}Votre système ($host) est déjà à jour.${reinit}"
 			fi
 		fi
-		#rm -f "$listtmpFP"
 	else
 		echo
 		CECHO "[INFO]" "$vert" -n && echo -e " La commande ${gras}${bleu}flatpak${reinit} n'est pas détectée sur ce système."
@@ -919,6 +952,9 @@ GESTION-OPTIONS() {
 	[ "$directrpms" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeD (${vert}-d${reinit})."
 	[ "$nocacheupd" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeB (${vert}-B${reinit})."
 	[ "$poweroff" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeP (${vert}-p${reinit})."
+	[ "$changelog" = "--changelogs" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeCL (${vert}-L${reinit})."
+	[ "$forcednf4" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $mode4 (${vert}-4${reinit})."
+	[ "$forcednf5" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $mode5 (${vert}-5${reinit})."
 
 	# Load config if available, otherwise report error
 	if [ -f "$config" ]; then
@@ -932,6 +968,22 @@ GESTION-OPTIONS() {
 			THE-END "des erreurs" | tee -a "$bigerror" || true
 			exit 1
 		fi
+	fi
+
+#	# handle --silent & --changelogs at the same time
+#	if [ "$changelog" = "--changelogs" ] && [ "$silent" = "yes" ]; then
+#		CECHO "[WARN]" "$jaune" -n && echo -e " Les modes pseudo-silencieux (${vert}-s${reinit}) et ChangeLog (${vert}-L${reinit}) ne peuvent être utilisés en même temps."
+#		CECHO "[INFO]" "$vert" -n && echo " On ignore le mode ChangeLog."
+#		changelog=""
+#	fi
+
+	# handle forcednf4 & 5 at the same time
+	if [ "$forcednf4" = "yes" ] && [ "$forcednf5" = "yes" ]; then
+		CECHO "[WARN]" "$jaune" -n && echo " Les modes dnf4 et dnf5 ne peuvent être utilisés en même temps."
+		CECHO "[INFO]" "$vert" -n && echo -e " On les ignore donc et on utilise ${gras}${bleu}/usr/bin/dnf${reinit}."
+		dnf="/usr/bin/dnf"
+		forcednf4=""
+		forcednf5=""
 	fi
 
 	# Handle email notifications and required package checks
@@ -984,6 +1036,7 @@ GESTION-OPTIONS() {
 			notif=""
 		fi
 	fi
+	[ "$norpm" = "" ] && INIT-LOGRPM
 	return 0
 }
 ################################################################################################################################
@@ -1020,6 +1073,22 @@ LOG-ROTATE() {
     done
 }
 ################################################################################################################################
+INIT-LOGFP() {
+	{ DATE-ET-HEURE ; echo ; echo "----------------------" ; echo "flatpak version :" ; } >> "$logFP"
+	if ! flatpak --version >> "$logFP"; then
+	    echo "Echec flatpak --version." | tee -a "$logFP"
+	fi
+	{ echo "----------------------" ; echo ; } >> "$logFP"
+}
+################################################################################################################################
+INIT-LOGRPM() {
+	{ DATE-ET-HEURE ; echo ; echo "----------------------" ; echo "dnf $dnf, version :" ; } >> "$log"
+	if ! $dnf --version >> "$log"; then
+	    echo "Echec $dnf --version. Est-ce que dnf est installé ?" | tee -a "$log"
+	fi
+	{ echo "----------------------" ; echo ; } >> "$log"
+}
+################################################################################################################################
 INIT-LOGS() {
 	datadir="$HOME/.local/share/${scriptname}"
 	confdir="$HOME/.config/${scriptname}"
@@ -1034,17 +1103,21 @@ INIT-LOGS() {
 	logerrorFP="${scriptname}-Flatpak.error"
 	logerror="${scriptname}-RPM.error"
 	bigerror="${scriptname}.error"
+	LOG-ROTATE || true
 	list="$datadir/RPMs.tmp.list"
 	listFP="$datadir/Flatpaks.tmp.list"
-	LOG-ROTATE || true
 	rm -f "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP"
-	touch "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP" || { echo "Echec lors de la création des logs" >&2; return 1; }
-	chmod 644 "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP" || { echo "Echec lors de la création des droits" >&2; return 1; }
+	touch "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP" || { echo "Echec lors de la création des logs" >&2; exit 1; }
+	chmod 640 "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP" || { echo "Echec lors de la création des droits" >&2; exit 1; }
 }
 ################################################################################################################################
 VIEWER() {
 	if EXISTS bat; then
-			bat="bat --paging=never"
+			if bat --list-themes | grep -q zenburn ; then
+				bat="bat -P -f -n -l log --theme=zenburn"
+			else
+				bat="bat -P -f -n -l log"
+			fi
 	else
 			bat="cat"
 	fi
@@ -1054,7 +1127,7 @@ INIT() {
 	UNALIAS || true
 
 # Initialisation des variables globales
-	dnf="/usr/bin/dnf5"
+	dnf="/usr/bin/dnf"
 	declare -gi days_since_install=0
 	declare -gi spinner_pid=1	# variable qui va contenir le PID pour tuer le spinner (cf START/STOP-SPINNER).
 	day=""
@@ -1075,6 +1148,9 @@ INIT() {
 	email=""
 	password=""
 	poweroff=""
+	changelog=""
+	forcednf4=""
+	forcednf5=""
 	modeS="${jaune}mode \"pseudo-silencieux\"${reinit}"
 	modeC="${jaune}mode \"vérification\"${reinit}"
 	modeM="${jaune}mode \"notification par email\"${reinit}"
@@ -1086,6 +1162,9 @@ INIT() {
 	modeCC="${jaune}mode \"contrôle de fonctionnement\"${reinit}"
 	modeB="${jaune}mode \"pas de mise à jour du cache\"${reinit}"
 	modeP="${jaune}mode \"extinction\"${reinit}"
+	modeCL="${jaune}mode \"ChangeLog\"${reinit}"
+	mode4="${jaune}mode \"dnf4\"${reinit}"
+	mode5="${jaune}mode \"dnf5\"${reinit}"
 	offlineindicator="$HOME/.offline-upgrade"
 
 # Initialisation des logs et du viewer
@@ -1154,6 +1233,26 @@ THE-END() {
 	return 0
 }
 ################################################################################################################################
+USE-DNF4() {
+	if EXISTS /usr/bin/dnf4; then
+		dnf="/usr/bin/dnf4"
+		forcednf4="yes"
+	else
+		CECHO "[WARN]" "$jaune" -n && echo -e " ${gras}${bleu}/usr/bin/dnf4${reinit} n\'existe pas."
+		CECHO "[INFO]" "$jaune" -n && echo -e " On utilise ${gras}${bleu}/usr/bin/dnf${reinit}."
+	fi
+}
+################################################################################################################################
+USE-DNF5() {
+	if EXISTS /usr/bin/dnf5; then
+		dnf="/usr/bin/dnf5"
+		forcednf5="yes"
+	else
+		CECHO "[WARN]" "$jaune" -n && echo -e " ${gras}${bleu}/usr/bin/dnf5${reinit} n\'existe pas."
+		CECHO "[INFO]" "$jaune" -n && echo -e " On utilise ${gras}${bleu}/usr/bin/dnf${reinit}."
+	fi
+}
+################################################################################################################################
 ERROR-ARGS() {
 	CECHO "[ERR.]" "$rouge" -n && echo -e " Argument(s) inconnu(s) : ${rouge}$cmdline${reinit}"
 	USAGE || true
@@ -1170,26 +1269,29 @@ ERROR-ARGS() {
 # Initialize the script environment
 INIT || true
 # Run getopt to manage short and long args, and handle errors inline
-options=$(getopt -o 'shcmnFR0CdBp' -l 'silent,help,check,mail,notify,noflatpak,norpm,nolog,checkdeps,direct,nocacheupd,poweroff' -- "$@" 2>/dev/null) || ERROR-ARGS
+options=$(getopt -o 'shcmnFR0CdBpL45' -l 'silent,help,check,mail,notify,noflatpak,norpm,nolog,checkdeps,direct,nocacheupd,poweroff,changelog,forcednf4,forcednf5' -- "$@" 2>/dev/null) || ERROR-ARGS
 # Reorder the arguments according to getopt's output
 eval set -- "$options"
 # Parse the options
 while true; do
 	case "$1" in
-		-s|--silent)        silent="yes"      ; shift ;;
-		-h|--help)          help="yes"        ; shift ;;
-		-c|--check)	        checkonly="yes"   ; shift ;;
-		-m|--email)         notif_email="yes" ; shift ;;
-		-n|--notify)        notif="yes"       ; shift ;;
-		-F|--noflatpak)     noflatpak="yes"   ; shift ;;
-		-R|--norpm)         norpm="yes"       ; shift ;;
-		-0|--nolog)         nolog="yes"       ; shift ;;
-		-C|--checkdeps)     checkdeps="yes"   ; shift ;;
-		-d|--direct)        directrpms="yes"  ; shift ;;
-		-B|--nocacheupd)    nocacheupd="yes"  ; shift ;;
-		-p|--poweroff)      poweroff="yes"    ; shift ;;
-		--)                 shift             ; break ;; # End of options
-		*)                  ERROR-ARGS        		  ;;
+		-s|--silent)        silent="yes"				; shift ;;
+		-h|--help)          help="yes"					; shift ;;
+		-c|--check)	        checkonly="yes"				; shift ;;
+		-m|--email)         notif_email="yes"			; shift ;;
+		-n|--notify)        notif="yes"					; shift ;;
+		-F|--noflatpak)     noflatpak="yes"				; shift ;;
+		-R|--norpm)         norpm="yes"					; shift ;;
+		-0|--nolog)         nolog="yes"					; shift ;;
+		-C|--checkdeps)     checkdeps="yes"				; shift ;;
+		-d|--direct)        directrpms="yes"			; shift ;;
+		-B|--nocacheupd)    nocacheupd="yes"			; shift ;;
+		-p|--poweroff)      poweroff="yes"				; shift ;;
+		-L|--changelog)		changelog="--changelogs"	; shift ;;
+		-4|--forcednf4)		USE-DNF4					; shift ;;
+		-5|--forcednf5)		USE-DNF5					; shift ;;
+		--)                 shift						; break ;; # End of options
+		*)                  ERROR-ARGS							;;
 	esac
 done
 # Check for any remaining unrecognized arguments

@@ -8,6 +8,13 @@
 - Meilleure gestion des logs,
 - Le script postupgrade détecte les rpmnew/rpmsave.
 
+## version 1.60
+-	compatibilité dnf v5,
+- mode --forcednf4 pour utiliser dnf4 (par défaut le script utilise /usr/bin/dnf),
+- mode --forcednf5 pour utiliser dnf5 (par défaut le script utilise /usr/bin/dnf),
+- mode --changelog, pour afficher la liste des modifs des paquets à mettre à jour,
+- nettoyage de code,
+- rotation des logs.
+
 ## todo pour version 2.0
 -	mode *distroupgrade* pour montée en version (Fedora 40 à 41 par exemple),
-- compatibilité *dnf5*.

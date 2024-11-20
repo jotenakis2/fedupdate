@@ -1,9 +1,9 @@
 [Unit]
-Description=Planifie l'exécution de checkupdate.service toutes les 2 heures
+Description=Planifie l'exécution de checkupdate.service toutes les 3 heures et au démarrage (15min)
 
 [Timer]
-OnBootSec=5min
-OnUnitActiveSec=2h
+OnBootSec=15min
+OnUnitActiveSec=3h
 Persistent=true
 
 [Install]
