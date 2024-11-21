@@ -59,52 +59,64 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 ## quelles sont les options de *fedupdate* ?
 -   **-h, --help**
-      
+
           Affiche l'aide,
 
 -   **-C, --checkdeps**
-      
+
           Pour vérifier les dépendances et afficher (ou recréer) le fichier de configuration,
 
 -   **-s, --silent**
-      
+
           Seule la liste de paquets sera affichée,
 
 -   **-c, --check**
-      
+
           Le script vérifiera si des mises à jour sont disponibles mais ne les installera pas,
 
 -   **-m, --email**
-      
+
           Le script envoie un email si des mises à jour sont disponibles,
 
 -   **-n, --notify**
-      
+
           Le script envoie une notification système si des mises à jour sont disponibles,
 
 -   **-F, --noflatpak**
-      
+
           La gestion des FLATPAKs est désactivée,
 
 -   **-R, --norpm**
-      
+
           La gestion des RPMs est désactivée,
 
 -   **-d, --direct**
-      
+
           La mise à jour des RPMs sera directe, c'est-à-dire en ligne (**non recommandé**"),
 
 -   **-B, --nocacheupd**
-      
+
           La mise à jour forcée du cache de dnf est ignorée (**non recommandé**),
 
 -   **-p, --poweroff**
-      
+
           L'ordinateur sera éteint après la mise à jour des RPMs,
 
 -   **-0, --nolog**
-      
+
           Les fichiers logs ne seront pas conservés.
+
+-   **-4, --forcednf4**
+
+          la commande dnf4 sera utilisée en lieu et place de la commande dnf.
+
+-   **-5, --forcednf5**
+
+          la commande dnf5 sera utilisée en lieu et place de la commande dnf.
+
+-   **-L, --changelog**
+
+          La liste des modifications apportées par les mises à jour sera affichée.
 
 
 ## Notes importantes
@@ -120,14 +132,17 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 -   Le mode "notification par email" (-m) nécessite la commande mail et un MTA configuré (Mail Transport Agent, comme msmtp ou opensmtpd).
 
--   Le script utilise /usr/bin/dnf4 (dnf5 n'est pas supporté pour le moment).
+-		Une rotation des logs est effectuée à chaque exécution du script.
+
+-		9 logs RPMs et 9 logs FLATPAKs sont conservés au maximum. Les logs vides sont automatiquement supprimés.
+
 
 ## Dépendances
 -	Paquet obligatoire pour installation automatique :
 		make
 
 -   Paquets obligatoires :
-        bash, coreutils, dnf (v4), findutils, gawk, libnotify, ncurses, sed, sudo et util-linux.
+        bash, coreutils, dnf, findutils, gawk, libnotify, ncurses, sed, sudo et util-linux.
 
 -   Paquets optionnels :
         s-nail, msmtp (ou opensmtpd), openssl et flatpak.
