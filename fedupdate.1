@@ -1,9 +1,9 @@
-.TH \fBfedupdate\fR 1 "Octobre 2024" "v1.2" "Documentation utilisateur"
+.TH \fBfedupdate\fR 1 "21 Novembre 2024" "v1.3" "Documentation utilisateur"
 .SH NAME
 \fBfedupdate\fR \- Cette commande met à jour un système FEDORA Linux.
 .SH SYNOPSIS
 .B fedupdate
-[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0]
+[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0] [-p] [-L] [-4] [-5] (ou arguments longs)
 
 .SH DESCRIPTION
 Si des nouveaux paquets \fBFLATPAKs\fR sont disponibles, une mise à jour est lancée.
@@ -51,6 +51,15 @@ Pour détruire les logs.
 .TP
 .B \-p,--poweroff
 Pour éteindre la machine après la mise à jour.
+.TP
+.B \-L,--changelog
+Pour lister les modifications apportées par les mises à jour.
+.TP
+.B \-4,--forcednf4
+Pour forcer l'utilisation de dnf v4 (par défaut la commande /usr/bin/dnf est utilisée).
+.TP
+.B \-5,--forcednf5
+Pour forcer l'utilisation de dnf v5 (par défaut la commande /usr/bin/dnf est utilisée).
 
 .SH EXAMPLES
 .PP
@@ -62,9 +71,9 @@ Pour contrôler les dépendances et afficher (ou re/créer) un fichier de config
 
 .B fedupdate \-C
 
-Pour faire une mise à jour des RPMs uniquement, en mode pseudo-silencieux, sans mettre à jour le cache de dnf et sans conserver les logs
+Pour faire une mise à jour des RPMs uniquement, en mode pseudo-silencieux, sans mettre à jour le cache de dnf et en utilisant dnf5
 
-.B fedupdate \-F -s -B -0
+.B fedupdate \-FsB5
 
 
 .SH NOTES
@@ -80,7 +89,9 @@ Le mode "notification par email" (\fB-m\fR) n'est appliqué que si la commande e
 
 Le mode "notification par email" (\fB-m\fR) nécessite la commande mail et un MTA configuré (Mail Transport Agent, comme \fBmsmtp\fR ou \fBopen\fR).
 
-\fBfedupdate\fR utilise \fB/usr/bin/dnf4\fR (dnf5 n'est pas supporté pour le moment).
+Une rotation des logs est effectuée à chaque exécution du programme.
+
+9 logs RPMs et 9 logs FLATPAKs sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 
 
 .SH FILES

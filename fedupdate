@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=1.59
+ver=1.60
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -21,13 +21,13 @@ FPK_CHECKUPDCMD() {
 		# en mode pseudosilencieux je n'affiche rien, je stocke les erreurs et la liste des upd et je met un spinner d'attente
 		{ trap STOP-SPINNER EXIT && START-SPINNER; }
 			# shellcheck disable=SC2024
-			flatpak update -y >"$listtmpFP" 2>>"$logerrorFP" || true
+			flatpak update >"$listtmpFP" 2>>"$logerrorFP" || true
 		{ STOP-SPINNER && echo "terminée."; }
 	else
 		# en mode normal, j'affiche tout en gris, je stocke les erreurs et la liste des upd (nettoyée)")
 		echo -e "$gris"
 		# shellcheck disable=SC2024
-		flatpak update -y > >(tee "$listtmpFP") 2> >(tee -a "$logerrorFP" >&2) || true
+		flatpak update > >(tee "$listtmpFP") 2> >(tee -a "$logerrorFP" >&2) || true
 		echo -ne "$reinit"
 	fi
 	cat "$listtmpFP" >> "$logFP"
@@ -665,7 +665,7 @@ ${bleu}${underline}OPTIONS${reinit}
         ${vert}-B, --nocacheupd  ${reinit}avec cette option (${gras}non recommandée${reinit}), le script ne fera pas de mise à jour forcée du cache de ${gras}${bleu}dnf${reinit} ($modeB),
         ${vert}-0, --nolog       ${reinit}avec cette option, tous les fichiers logs seront détruits à la fin de l'éxécution du script ($mode0),
         ${vert}-p, --poweroff    ${reinit}avec cette option, l'ordinateur sera éteint après la mise à jour ($modeP),
-        ${vert}-L, --changelog   ${reinit}avec cette option, le script va afficher la liste des modifications apportées par les mises à jour des ${jaune}RPMs${reinit} ($modeCL),
+        ${vert}-L, --changelog   ${reinit}avec cette option, le script va afficher la liste des modifications apportées par les mises à jour ($modeCL),
         ${vert}-4, --forcednf4   ${reinit}avec cette option, le script va utiliser la commande ${gras}${bleu}dnf4${reinit} ($mode4),
         ${vert}-5, --forcednf5   ${reinit}avec cette option, le script va utiliser la commande ${gras}${bleu}dnf5${reinit} ($mode5).
 
@@ -1074,7 +1074,7 @@ LOG-ROTATE() {
 }
 ################################################################################################################################
 INIT-LOGFP() {
-	{ DATE-ET-HEURE ; echo ; echo "----------------------" ; echo "flatpak version :" ; } >> "$logFP"
+	{ DATE-ET-HEURE ; echo "$scriptfullname $cmdline" ; echo ; echo "----------------------" ; echo "flatpak version :" ; } >> "$logFP"
 	if ! flatpak --version >> "$logFP"; then
 	    echo "Echec flatpak --version." | tee -a "$logFP"
 	fi
@@ -1082,7 +1082,7 @@ INIT-LOGFP() {
 }
 ################################################################################################################################
 INIT-LOGRPM() {
-	{ DATE-ET-HEURE ; echo ; echo "----------------------" ; echo "dnf $dnf, version :" ; } >> "$log"
+	{ DATE-ET-HEURE ; echo "$scriptfullname $cmdline" ; echo ; echo "----------------------" ; echo "dnf $dnf, version :" ; } >> "$log"
 	if ! $dnf --version >> "$log"; then
 	    echo "Echec $dnf --version. Est-ce que dnf est installé ?" | tee -a "$log"
 	fi
