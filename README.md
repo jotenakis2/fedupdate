@@ -132,9 +132,9 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 -   Le mode "notification par email" (-m) nécessite la commande mail et un MTA configuré (Mail Transport Agent, comme msmtp ou opensmtpd).
 
--		Une rotation des logs est effectuée à chaque exécution du script.
+-   Une rotation des logs est effectuée à chaque exécution du script.
 
--		9 logs RPMs et 9 logs FLATPAKs sont conservés au maximum. Les logs vides sont automatiquement supprimés.
+-   9 logs RPMs et 9 logs FLATPAKs sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 
 
 ## Dépendances
