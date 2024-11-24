@@ -9,7 +9,7 @@
 
 	--changelog
 
-	--poweroff
+	--noflatpak
 
 	--silent
 

@@ -353,8 +353,7 @@ CREATE-CONFIG() {
 			echo "password=\"${password}\"" >> "$config" || true
 			chmod 600 "$config" || return 1
 		fi
-		{
-			echo;
+		{	echo;
 			echo "# option -4 : (décommentez ci-dessous pour activer)";
 			echo "#forcednf4=\"yes\"";
 			echo;
