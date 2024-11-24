@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=1.60
+ver=1.65
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -111,15 +111,16 @@ DNF_CHECKUPDCMD() { # vérification de la présence de mise à jour
 		# en mode pseudosilencieux je n'affiche rien, je stocke les erreurs et la liste des upd et je met un spinner d'attente
 		{ trap STOP-SPINNER EXIT && START-SPINNER; }
 			# shellcheck disable=SC2024
-			sudo $dnf check-update -q $changelog >"$listtmp" 2>>"$logerror" || true
+			sudo $dnf check-update $changelog -q >"$listtmp" 2>>"$logerror" || true
 		{ STOP-SPINNER && echo "terminée."; }
 	else
 		# en mode normal, j'affiche tout en gris, je stocke les erreurs et la liste des upd (nettoyée)")
 		echo -e "$gris"
 		# shellcheck disable=SC2024
-		sudo $dnf check-update -q $changelog > >(tee "$listtmp" | sed '/^$/d') 2> >(tee -a "$logerror" >&2) || true
+		sudo $dnf check-update $changelog -q > >(tee "$listtmp" | sed '/^$/d') 2> >(tee -a "$logerror" >&2) || true
 		echo -ne "$reinit"
 	fi
+	sed -i '/.*|.*|.*|.*/d' "$listtmp" # parfois l'option -q déconne avec dnf5 donc je nettoie
 	sed '/^Changelogs/ {x;p;x}' "$listtmp" >> "$log"
 	sed -i '/^$/d' "$listtmp"
 	return 0
@@ -352,6 +353,24 @@ CREATE-CONFIG() {
 			echo "password=\"${password}\"" >> "$config" || true
 			chmod 600 "$config" || return 1
 		fi
+		{
+			echo;
+			echo "# option -4 : (décommentez ci-dessous pour activer)";
+			echo "#forcednf4=\"yes\"";
+			echo;
+			echo "# option -5 : (décommentez ci-dessous pour activer)";
+			echo "#forcednf5=\"yes\"";
+			echo;
+			echo "# option -L : (décommentez ci-dessous pour activer)";
+			echo "#changelog=\"--changelogs\"";
+			echo;
+			echo "# option -s : (décommentez ci-dessous pour activer)";
+			echo "#silent=\"yes\"";
+			echo;
+			echo "# option -F : (décommentez ci-dessous pour activer)";
+			echo "#noflatpak=\"yes\"";
+			echo;
+		} >> "$config"
 		CECHO "[INFO]" "$vert" -n && echo -e " Fichier ${gras}${bleu}$config${reinit} crée :"
 		$bat "$config" || return 1
 	else
@@ -945,16 +964,6 @@ GESTION-OPTIONS() {
 		CECHO "[INFO]" "$vert" -n && echo -e " $modeCC (${vert}-C${reinit})."
 		CHECK || true
 	fi
-	[ "$silent" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeS (${vert}-s${reinit})."
-	[ "$noflatpak" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeF (${vert}-F${reinit})."
-	[ "$norpm" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeR (${vert}-R${reinit})."
-	[ "$nolog" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $mode0 (${vert}-0${reinit})."
-	[ "$directrpms" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeD (${vert}-d${reinit})."
-	[ "$nocacheupd" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeB (${vert}-B${reinit})."
-	[ "$poweroff" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeP (${vert}-p${reinit})."
-	[ "$changelog" = "--changelogs" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeCL (${vert}-L${reinit})."
-	[ "$forcednf4" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $mode4 (${vert}-4${reinit})."
-	[ "$forcednf5" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $mode5 (${vert}-5${reinit})."
 
 	# Load config if available, otherwise report error
 	if [ -f "$config" ]; then
@@ -970,12 +979,22 @@ GESTION-OPTIONS() {
 		fi
 	fi
 
-#	# handle --silent & --changelogs at the same time
-#	if [ "$changelog" = "--changelogs" ] && [ "$silent" = "yes" ]; then
-#		CECHO "[WARN]" "$jaune" -n && echo -e " Les modes pseudo-silencieux (${vert}-s${reinit}) et ChangeLog (${vert}-L${reinit}) ne peuvent être utilisés en même temps."
-#		CECHO "[INFO]" "$vert" -n && echo " On ignore le mode ChangeLog."
-#		changelog=""
-#	fi
+	[ "$silent" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeS (${vert}-s${reinit})."
+	[ "$noflatpak" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeF (${vert}-F${reinit})."
+	[ "$norpm" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeR (${vert}-R${reinit})."
+	[ "$nolog" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $mode0 (${vert}-0${reinit})."
+	[ "$directrpms" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeD (${vert}-d${reinit})."
+	[ "$nocacheupd" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeB (${vert}-B${reinit})."
+	[ "$poweroff" = "yes" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeP (${vert}-p${reinit})."
+	[ "$changelog" = "--changelogs" ] && CECHO "[INFO]" "$vert" -n && echo -e " $modeCL (${vert}-L${reinit})."
+	if [ "$forcednf4" = "yes" ]; then
+		CECHO "[INFO]" "$vert" -n && echo -e " $mode4 (${vert}-4${reinit})."
+		dnf="/usr/bin/dnf4"
+	fi
+	if [ "$forcednf5" = "yes" ]; then
+		CECHO "[INFO]" "$vert" -n && echo -e " $mode5 (${vert}-5${reinit})."
+		dnf="/usr/bin/dnf5"
+	fi
 
 	# handle forcednf4 & 5 at the same time
 	if [ "$forcednf4" = "yes" ] && [ "$forcednf5" = "yes" ]; then
@@ -1074,7 +1093,12 @@ LOG-ROTATE() {
 }
 ################################################################################################################################
 INIT-LOGFP() {
-	{ DATE-ET-HEURE ; echo "$scriptfullname $cmdline" ; echo ; echo "----------------------" ; echo "flatpak version :" ; } >> "$logFP"
+	{	DATE-ET-HEURE ;
+		echo "$scriptfullname $cmdline (v$ver)" ;
+		echo ;
+		echo "----------------------" ;
+		echo "flatpak version :" ;
+	} >> "$logFP"
 	if ! flatpak --version >> "$logFP"; then
 	    echo "Echec flatpak --version." | tee -a "$logFP"
 	fi
@@ -1082,7 +1106,12 @@ INIT-LOGFP() {
 }
 ################################################################################################################################
 INIT-LOGRPM() {
-	{ DATE-ET-HEURE ; echo "$scriptfullname $cmdline" ; echo ; echo "----------------------" ; echo "dnf $dnf, version :" ; } >> "$log"
+	{ 	DATE-ET-HEURE ;
+		echo "$scriptfullname $cmdline (v$ver)" ;
+		echo ;
+		echo "----------------------" ;
+		echo "dnf $dnf, version :" ;
+	} >> "$log"
 	if ! $dnf --version >> "$log"; then
 	    echo "Echec $dnf --version. Est-ce que dnf est installé ?" | tee -a "$log"
 	fi
