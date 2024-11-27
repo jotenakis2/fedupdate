@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=1.65
+ver=1.70
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -110,14 +110,24 @@ DNF_CHECKUPDCMD() { # vérification de la présence de mise à jour
 	if [ "$silent" = "yes"  ]; then
 		# en mode pseudosilencieux je n'affiche rien, je stocke les erreurs et la liste des upd et je met un spinner d'attente
 		{ trap STOP-SPINNER EXIT && START-SPINNER; }
-			# shellcheck disable=SC2024
-			sudo $dnf check-update $changelog -q >"$listtmp" 2>>"$logerror" || true
+			if [ "$changelog" = "" ]; then
+				# shellcheck disable=SC2024
+				sudo $dnf check-update -q >"$listtmp" 2>>"$logerror" || true
+			else
+				# shellcheck disable=SC2024
+				sudo $dnf check-update $changelog -q >"$listtmp" 2>>"$logerror" || true
+			fi
 		{ STOP-SPINNER && echo "terminée."; }
 	else
 		# en mode normal, j'affiche tout en gris, je stocke les erreurs et la liste des upd (nettoyée)")
 		echo -e "$gris"
-		# shellcheck disable=SC2024
-		sudo $dnf check-update $changelog -q > >(tee "$listtmp" | sed '/^$/d') 2> >(tee -a "$logerror" >&2) || true
+		if [ "$changelog" = "" ]; then
+			# shellcheck disable=SC2024
+			sudo $dnf check-update -q > >(tee "$listtmp" | sed '/^$/d') 2> >(tee -a "$logerror" >&2) || true
+		else
+			# shellcheck disable=SC2024
+			sudo $dnf check-update $changelog -q > >(tee "$listtmp" | sed '/^$/d') 2> >(tee -a "$logerror" >&2) || true
+		fi
 		echo -ne "$reinit"
 	fi
 	sed -i '/.*|.*|.*|.*/d' "$listtmp" # parfois l'option -q déconne avec dnf5 donc je nettoie
@@ -1118,25 +1128,35 @@ INIT-LOGRPM() {
 }
 ################################################################################################################################
 INIT-LOGS() {
+	passwordencrypted="$datadir/.password.enc"
+	privatekey="$datadir/.${scriptname}_rsa.pem"
+	config="$confdir/config.rc"
+	if [ "$nolog" = "" ]; then
+		log="${scriptname}-RPM"
+		logFP="${scriptname}-Flatpak"
+		logerrorFP="${scriptname}-Flatpak.error"
+		logerror="${scriptname}-RPM.error"
+		bigerror="${scriptname}.error"
+		LOG-ROTATE || true
+		rm -f "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP"
+		touch "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP" || { echo "Echec lors de la création des logs" >&2; exit 1; }
+		chmod 640 "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP" || { echo "Echec lors de la création des droits" >&2; exit 1; }
+	fi
+}
+################################################################################################################################
+INIT-TEMPLOGS() {
 	datadir="$HOME/.local/share/${scriptname}"
 	confdir="$HOME/.config/${scriptname}"
 	# Ensure data and config directories exist
 	[ ! -d "$datadir" ] && { mkdir -p "$datadir" || true ;}
 	[ ! -d "$confdir" ] && { mkdir -p "$confdir" || true ;}
-	passwordencrypted="$datadir/.password.enc"
-	privatekey="$datadir/.${scriptname}_rsa.pem"
-	config="$confdir/config.rc"
-	log="${scriptname}-RPM"
-	logFP="${scriptname}-Flatpak"
-	logerrorFP="${scriptname}-Flatpak.error"
-	logerror="${scriptname}-RPM.error"
-	bigerror="${scriptname}.error"
-	LOG-ROTATE || true
+	log="/tmp/${scriptname}-RPM.log"
+	logFP="/tmp/${scriptname}-Flatpak.log"
+	logerrorFP="/tmp/${scriptname}-Flatpak.error.log"
+	logerror="/tmp/${scriptname}-RPM.error.log"
+	bigerror="/tmp/${scriptname}.error.log"
 	list="$datadir/RPMs.tmp.list"
 	listFP="$datadir/Flatpaks.tmp.list"
-	rm -f "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP"
-	touch "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP" || { echo "Echec lors de la création des logs" >&2; exit 1; }
-	chmod 640 "$log" "$logFP" "$logerror" "$logerrorFP" "$bigerror" "$list" "$listFP" || { echo "Echec lors de la création des droits" >&2; exit 1; }
 }
 ################################################################################################################################
 VIEWER() {
@@ -1196,7 +1216,7 @@ INIT() {
 	offlineindicator="$HOME/.offline-upgrade"
 
 # Initialisation des logs et du viewer
-	INIT-LOGS || true
+	INIT-TEMPLOGS || true
 	VIEWER || true
 
 # Affichage initial
@@ -1205,7 +1225,7 @@ INIT() {
 	else
 		CLEAR || true
 	fi
-		# shellcheck source=/dev/null
+	# shellcheck source=/dev/null
 	source "/etc/os-release" || true
 	rm -f "$datadir/.term"
 	INSTALLED_DISTRO || true
@@ -1328,6 +1348,7 @@ for arg in "$@"; do
 		ERROR-ARGS
 	fi
 done
+INIT-LOGS || true
 # Process options and execute actions
 GESTION-OPTIONS || true
 [ -z "$noflatpak" ] && { GESTION-FPK || true ;}

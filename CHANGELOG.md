@@ -1,5 +1,11 @@
 # *CHANGELOG*
 
+## version 1.70
+-	amélioration de la gestion des logs (plus de rotation des logs en mode "nolog").
+
+-	amélioration du script post-upgrade-message.sh pour gérer les logs dnf5 multiples.
+
+
 ## version 1.65
 - ajout dans le fichier de conf de la possibilité de faire un choix par défaut pour les options suivantes :
 
@@ -39,5 +45,4 @@
 
 
 ## todo pour version 2.0
--	mode *distroupgrade* pour monter en version (Fedora 40 à 41 par exemple),
--   qqs options par défaut dans fichier de conf : -4/5, -L, -s, -p, -F
+-	mode *distroupgrade* pour monter en version (Fedora 40 à 41 par exemple).
