@@ -1,5 +1,13 @@
 # *CHANGELOG*
 
+## version 1.95
+-	mode -u, --distrupgrade pour monter en version (par exemple de Fedora 40 à 41).
+
+- mode -l, --limitlog les logs ne sont conservés qu'en cas de mise à jour.
+
+-	corrections de bugs, améliorations mineures cosmétiques.
+
+
 ## version 1.70
 -	amélioration de la gestion des logs (plus de rotation des logs en mode "nolog").
 

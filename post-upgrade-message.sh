@@ -115,14 +115,17 @@ POSTUPGRADEDNF5() {
 	local first_date_readable=""
 	local last_date_readable=""
 	local last_three_entries=""
-	local log_file_comb=""
 	local tmp_combined_log="/tmp/offlineupgrade-combinedlog.log"
+	local line=""
+	local line_timestamp=""
+	local -i line_epoch=0
+	local start_timestamp=""
+	local -i start_epoch=""
 	echo > "$tmp_combined_log"
 	chmod 666 "$tmp_combined_log" || true
-#
-	# Recherche de la commande 'dnf5 offline _execute' dans les logs dnf5.log, dnf5.log.1, etc. jusqu'à .9
+	# Recherche de la commande 'dnf5 offline _execute' dans les logs dnf5.log, dnf5.log.1, etc. jusqu'à .5
 	# log_file contient le nom du fichier où il aura trouvé la commande.
-    for log_file in "$log_dir/$log_file_base"{,.{1..9}}; do
+    for log_file in "$log_dir/$log_file_base"{,.{1..5}}; do
         if [[ -f "$log_file" ]]; then
             dnf5launch=$(awk '{lines[NR] = $0} END {for (i = NR; i > 0; i--) if (lines[i] ~ /dnf5 offline _execute|dnf offline _execute/) {print lines[i]; exit}}' "$log_file" || true)
             if [[ -n "$dnf5launch" ]]; then
@@ -134,16 +137,34 @@ POSTUPGRADEDNF5() {
         echo "Aucune commande \"dnf offline _execute\" n a été trouvée dans les logs" | tee -a "$bigerror"
         return 1
     fi
-#
+	# Extract PID and timestamp from the launch line
 	pid_dnf=$(echo "$dnf5launch" | grep -o '\[[0-9]\+]' | tr -d '[]' || true)
+	start_timestamp=$(echo "$dnf5launch" | awk '{print $1}')
+	start_epoch=$(date --date="$start_timestamp" +%s)
 	if (( pid_dnf > 0 )); then
-		# Combiner toutes les entrées de log correspondantes au pid trouvé dans un fichier temporaire
-	    for log_file_comb in "$log_dir/$log_file_base"{,.{1..9}}; do
-	        if [[ -f "$log_file_comb" ]]; then
-	            grep "\[$pid_dnf\]" "$log_file_comb" >> "$tmp_combined_log" || true
-	        fi
-	    done
-#
+		# Combiner toutes les entrées de log correspondantes au pid trouvé (+ timestamp cohérent) dans un fichier temporaire
+		cat "$log_dir/$log_file_base"{,.{1..5}} | awk -v pid="[$pid_dnf]" -v start_epoch="$start_epoch" '
+			{
+			    # Extract the timestamp directly from $1
+			    line_timestamp = $1
+
+			    # Convert the timestamp to epoch
+			    cmd = "date --date=\"" line_timestamp "\" +%s"
+			    cmd | getline line_epoch
+			    close(cmd)
+
+			    # Compare line_epoch to start_epoch
+			    if (line_epoch >= start_epoch && $0 ~ pid) {
+			        print
+			        if ($0 ~ /INFO DNF5 finished/) {
+			            exit
+			        }
+			    }
+			}
+			' > "$tmp_combined_log"
+		if ! grep -q "INFO DNF5 finished" "$tmp_combined_log"; then
+		    echo "Fin de mise à jour 'INFO DNF5 finished' introuvable pour le PID $pid_dnf." >> "$bigerror"
+		fi
 		first_date="$(grep "\[$pid_dnf\]" "$tmp_combined_log" | head -n 1 | awk '{print $1}' || true)"
 		first_date_readable="$(FORMAT-DATE "$first_date")"
 		{ echo "$first_date"; echo; } > "$success"

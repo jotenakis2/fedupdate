@@ -118,6 +118,14 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
           La liste des modifications apportées par les mises à jour sera affichée.
 
+-   **-l, --limitlog**
+
+          Seuls les logs en cas de mise à jour sont conservés.
+
+-   **-u, --distrupgrade**
+
+          Montée de version (de FC40 à FC41 par exemple).
+
 
 ## Notes importantes
 -   Le mode "contrôle de fonctionnement" (-C) va permettre de générer le fichier de configuration et de vérifier les dépendances du script.

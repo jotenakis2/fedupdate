@@ -1,4 +1,4 @@
-.TH \fBfedupdate\fR 1 "21 Novembre 2024" "v1.3" "Documentation utilisateur"
+.TH \fBfedupdate\fR 1 "02 Décembre 2024" "v1.4" "Documentation utilisateur"
 .SH NAME
 \fBfedupdate\fR \- Cette commande met à jour un système FEDORA Linux.
 .SH SYNOPSIS
@@ -55,11 +55,17 @@ Pour éteindre la machine après la mise à jour.
 .B \-L,--changelog
 Pour lister les modifications apportées par les mises à jour.
 .TP
+.B \-l,--limitlog
+Pour ne conserver que les logs qui contiennent une mise à jour.
+.TP
 .B \-4,--forcednf4
 Pour forcer l'utilisation de dnf v4 (par défaut la commande /usr/bin/dnf est utilisée).
 .TP
 .B \-5,--forcednf5
 Pour forcer l'utilisation de dnf v5 (par défaut la commande /usr/bin/dnf est utilisée).
+.TP
+.B \-u,--distrupgrade
+Pour monter en version (par exemple de Fc40 à Fc41).
 
 .SH EXAMPLES
 .PP
