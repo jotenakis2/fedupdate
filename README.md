@@ -70,6 +70,10 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
           Seule la liste de paquets sera affichée,
 
+-   **-v, --verbose**
+
+          Toutes les informations sont affichées,
+
 -   **-c, --check**
 
           Le script vérifiera si des mises à jour sont disponibles mais ne les installera pas,
@@ -143,6 +147,8 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 -   Une rotation des logs est effectuée à chaque exécution du script.
 
 -   9 logs RPMs et 9 logs FLATPAKs sont conservés au maximum. Les logs vides sont automatiquement supprimés.
+
+-   Le mode "verbeux" (-v) permet d'outrepasser le mode "pseudo-silencieux" (-s) si ce dernier est activé par défaut dans le fichier config.rc.
 
 
 ## Dépendances

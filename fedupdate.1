@@ -1,9 +1,9 @@
-.TH \fBfedupdate\fR 1 "02 Décembre 2024" "v1.4" "Documentation utilisateur"
+.TH \fBfedupdate\fR 1 "14 Décembre 2024" "v1.5" "Documentation utilisateur"
 .SH NAME
 \fBfedupdate\fR \- Cette commande met à jour un système FEDORA Linux.
 .SH SYNOPSIS
 .B fedupdate
-[-h] [-C] [-s] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0] [-p] [-L] [-4] [-5] (ou arguments longs)
+[-h] [-C] [-s] [-v] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0] [-p] [-L] [-l] [-4] [-5] [-u] (ou arguments longs)
 
 .SH DESCRIPTION
 Si des nouveaux paquets \fBFLATPAKs\fR sont disponibles, une mise à jour est lancée.
@@ -24,6 +24,9 @@ Affiche et/ou crée le fichier de configuration, puis contrôle les dépendances
 .TP
 .B \-s,--silent
 Seules les erreurs et la liste de paquets seront affichées.
+.TP
+.B \-v,--verbose
+Toutes les infos sont affichées (mode "verbeux").
 .TP
 .B \-c,--check
 Pour vérifier si des mises à jour sont disponibles sans les installer.
@@ -99,6 +102,7 @@ Une rotation des logs est effectuée à chaque exécution du programme.
 
 9 logs RPMs et 9 logs FLATPAKs sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 
+Le mode "verbeux" (\fB-v\fR) permet d'outrepasser le mode "pseudo-silencieux" (\fB-s\fR) si ce dernier est activé par défaut dans le fichier config.rc.
 
 .SH FILES
 .TP

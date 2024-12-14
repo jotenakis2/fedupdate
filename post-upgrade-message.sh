@@ -178,7 +178,7 @@ POSTUPGRADEDNF5() {
 		if grep -q "Transaction complete!" "$tmp_combined_log" && grep -q "DNF5 finished" "$tmp_combined_log"; then
 		    {
 				echo "Fichier log : $log_file"
-	            echo "La mise à jour hors-ligne a été exécutée correctement"
+	            echo "==> LA MISE À JOUR HORS-LIGNE A ÉTÉ ÉXECUTÉE CORRECTEMENT <=="
 	            echo
 	            echo "--------------------------------"
 	            echo "$dnf5launch"
@@ -195,7 +195,7 @@ POSTUPGRADEDNF5() {
 		else
 		    {
 				echo "Fichier log : $log_file"
-	            echo "La mise à jour hors-ligne semble ne pas avoir été exécutée correctement"
+	            echo "==> LA MISE À JOUR HORS-LIGNE SEMBLE AVOIR ÉCHOUÉ  <=="
 	            echo "$last_three_entries"
 	            echo
 	            echo "--------------------------------"

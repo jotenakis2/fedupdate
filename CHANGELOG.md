@@ -1,5 +1,21 @@
 # *CHANGELOG*
 
+## version 2.0
+-	mise à jour du compte à rebours (compatible avec tous les terminaux) et correction de bug.
+
+- ajout d'un contrôle avant reboot pour mise à jour hors ligne.
+
+- ajout d'une validation par l'utilisateur de la version cible d'une montée de version (option -u).
+
+- amélioration de la gestion des logs (rotation à la fin du script et si nécessaire seulement).
+
+- ajout d'un mode verbeux "-v" (pour outrepasser l'option -s qui peut être choisie par défaut dans le fichier config).
+
+- amélioration de la détection d'erreur dnf : ajout d'un filtre (dnf5 - buggué - renvoie des messages informatifs sur stderr).
+
+-	corrections de bugs, améliorations mineures cosmétiques.
+
+
 ## version 1.95
 -	mode -u, --distrupgrade pour monter en version (par exemple de Fedora 40 à 41).
 
