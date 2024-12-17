@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=2.0
+ver=2.05
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -46,27 +46,6 @@ FPK_UPDCMD() {
 		$flatpak -y update > >(tee -a "$logFP") 2> >(tee -a "$logerrorFP" >&2) || true
 		echo -ne "$reinit"
 	fi
-	return 0
-}
-#-------------------------------------------------------------------------------------------
-FPK_CHANGELOG() {
-	local updates
-	local package
-	local repo
-	updates=$(awk '{print $1}' "$listFP")
-	[[ -z "$updates" ]] && return 0
-	for package in $updates; do
-		# Get repo info; exit with error if the command fails
-		repo=$($flatpak info --show-origin "$package") || {
-			echo "Echec lors de la récupération du nom du repo de : $package" >&2 >> "$logFP"
-			return 1
-		}
-		# Get log info for the package; exit with error if the command fails
-		$flatpak remote-info --log "$repo" "$package" || {
-			echo "Echec lors de la récupération des infos de : $package" >&2 >> "$logFP"
-			return 1
-		}
-	done
 	return 0
 }
 #-------------------------------------------------------------------------------------------
@@ -508,7 +487,7 @@ CHECK() { # contrôle des dépendances - peut être explicitement appelé (optio
 			CECHO "[INFO]" "$vert" -n && echo -e " Voici la liste des ${gras}${jaune}paquets requis${reinit} pour que ce script fonctionne :"
 		fi
 		echo -e "	${gras}${bleu}bash${reinit}, ${gras}${bleu}coreutils${reinit}, ${gras}${bleu}dnf${reinit}, ${gras}${bleu}findutils${reinit}, ${gras}${bleu}gawk${reinit}, ${gras}${bleu}libnotify${reinit}, ${gras}${bleu}ncurses${reinit}, ${gras}${bleu}sed${reinit}, ${gras}${bleu}sudo${reinit} et ${gras}${bleu}util-linux${reinit}."
-
+		SUDOPASS
 		CECHO "[INFO]" "$vert" -n && echo -e " Voici la liste des ${gras}${jaune}paquets requis trouvés${reinit} sur ${gras}$host${reinit} :"
 		sudo $dnf list --installed | grep --color=always -E '^(bash|coreutils|dnf|findutils|gawk|libnotify|ncurses|sed|sudo|util-linux)\.' | awk '{$NF=""; sub(/[[:space:]]+$/, ""); printf "%-50s %s\n", $1, $2}' || true
 		echo
@@ -775,7 +754,7 @@ ${bleu}${underline}OPTIONS${reinit}
         ${vert}-0, --nolog          ${reinit}Pour détruire les logs à la fin de l'éxécution du script ($mode0),
         ${vert}-l, --limitlog       ${reinit}Pour ne conserver les logs qu'en cas de mise à jour ($modeLP),
         ${vert}-p, --poweroff       ${reinit}Pour éteindre l'ordinateur après la mise à jour ($modeP),
-        ${vert}-L, --changelog      ${reinit}Pour afficher la liste des modifications apportées par les mises à jour ($modeCL),
+        ${vert}-L, --changelog      ${reinit}Pour afficher la liste des modifications apportées par les mises à jour des ${jaune}RPMs${reinit} ($modeCL),
         ${vert}-4, --forcednf4      ${reinit}Pour utiliser la commande ${gras}${bleu}dnf4${reinit} ($mode4),
         ${vert}-5, --forcednf5      ${reinit}Pour utiliser la commande ${gras}${bleu}dnf5${reinit} ($mode5),
         ${vert}-u, --distrupgrade   ${reinit}Pour lancer une montée de version du système ($modeU).
@@ -933,19 +912,22 @@ SEND-EMAIL() {
 }
 ################################################################################################################################
 GESTION-NOTIF() {
-	local type="$1"
-	local liste="$2"
+	local type
+	type="$1"
+	local liste
+	liste="$2"
 	local message
 	local icon
 	local messagelong
-	local tmp="/tmp/file.tmp"
+	local tmp
+	tmp="/tmp/file.tmp"
 	declare -i attempt=0
 	declare -i max_attempts=9
 	icon="/usr/share/swcatalog/icons/fedora/128x128/org.mageia.dnfdragora.png"
-	message="Exécutez le programme $scriptfullname pour mettre à jour :"
+	message="Mises à jour disponibles"
 	# Extract and format list for the notification
 	awk '{print $1}' "$liste" | sort -u | sed -E 's/\.aarch64$//; s/\.noarch$//; s/^org\.//' > "$tmp" || true
-	messagelong=$(tr '\n' ',' < "$tmp" | sed 's/,/,   /g' | sed 's/[[:space:]]*,[[:space:]]*$/ /') || messagelong="(Liste indisponible)"
+	messagelong="$(tr '\n' ',' < "$tmp" | sed 's/,/,   /g' | sed 's/[[:space:]]*,[[:space:]]*$/ /')" || messagelong="(Liste indisponible)"
 	rm -f "$tmp"
 	unset "$tmp"
 	# Wait for D-Bus notifications to be ready (max 9 attempts)
@@ -960,7 +942,7 @@ GESTION-NOTIF() {
 		sleep 5 || true
 	done
 	# Send notification
-	notify-send -i "$icon" -u critical --app-name "Mises à jour système ($type)" "$message" "$messagelong" || true
+	notify-send -i "$icon" -u critical --app-name "$scriptname ($type)" "$message" "$messagelong" || true
 	return 0
 }
 ################################################################################################################################
@@ -1029,17 +1011,17 @@ DISTRO-UPGRADE() {
 ################################################################################################################################
 CHECKRPM() {
 	listtmp="/tmp/list.tmp"
-	SUDOPASS
 	if [ -z "$nocacheupd" ]; then
 		CECHO "[INFO]" "$vert" -n && echo -n " Mise à jour forcée du cache des métadonnées "
 		DNF_CLEANCMD
 		DNF_CACHEUPDCMD
 	fi
 	CECHO "[INFO]" "$vert" -n && echo -n " Vérification des paquets disponibles "
-	SUDOPASS
 	DNF_CHECKUPDCMD
 	# Format and filter list of updates
-	#sed '/^Changelogs/,$d' "$listtmp" | awk '{printf "%-45s %-7s\n", $1, $2}' | grep -v '^[[:space:]]*$' | sed 's/^/  /' > "$list" || true
+	if [ "$silent" = "yes" ] && [ "$changelog" = "--changelogs" ]; then
+		$bat $listtmp
+	fi
 	awk '/^Changelogs/ {exit} {if (NF > 0) printf "  %-45s %-7s\n", $1, $2}' "$listtmp" > "$list" || true
 	rm -f "$listtmp"
 	unset listtmp
@@ -1069,7 +1051,7 @@ GESTION-RPM() {
 	echo
 	PRINTBANNER-CENTERED "GESTION DES RPMs" "." "$cyan"
 	if CHECKRPM; then
-		if [ -n "$silent" ]; then
+		if [ "$silent" = "yes" ] && [ "$changelog" = "" ] ; then
 			$bat "$list" || true
 		fi
 		if [ -z "$checkonly" ]; then 	# mode normal
@@ -1127,9 +1109,6 @@ GESTION-Flatpak() {
 				# Display logs based on `silent` mode
 				if [ -n "$silent" ]; then
 					$bat "$listFP" || true
-				fi
-				if [ "$changelog" = "--changelogs" ]; then
-					FPK_CHANGELOG || true
 				fi
 				if [ -z "$checkonly" ]; then
 					# Download and install updates

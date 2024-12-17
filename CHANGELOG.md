@@ -1,5 +1,15 @@
 # *CHANGELOG*
 
+## version 2.05
+-	mode -C (check conf). bug fix : sudo demandait le mot de passe.
+
+- mode -L (changelog). bug fix : le changelog n'apparaissait pas dans le terminal en mode silencieux.
+
+- mode -L (changelog). Suppression de ce mode pour les Flatpaks. C'était buggué et inutile (pas réellement de changelog dispo).
+
+- mode -n (notif). bug fix : notification système ne marchait plus, du coup le service systemd de contrôle des maj non plus.
+
+
 ## version 2.0
 -	mise à jour du compte à rebours (compatible avec tous les terminaux) et correction de bug.
 

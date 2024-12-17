@@ -120,7 +120,7 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 -   **-L, --changelog**
 
-          La liste des modifications apportées par les mises à jour sera affichée.
+          La liste des modifications apportées par les mises à jour sera affichée (RPM uniquement).
 
 -   **-l, --limitlog**
 
