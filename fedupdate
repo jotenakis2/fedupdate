@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=2.10
+ver=2.11
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -932,7 +932,7 @@ GESTION-NOTIF() {
 	local icon
 	local messagelong
 	local tmp
-	tmp="/tmp/file.tmp"
+	tmp="$HOME/.cache/file.tmp"
 	declare -i attempt=0
 	declare -i max_attempts=9
 	icon="/usr/share/swcatalog/icons/fedora/128x128/org.mageia.dnfdragora.png"
@@ -1021,7 +1021,7 @@ DISTRO-UPGRADE() {
 }
 ################################################################################################################################
 CHECKRPM() {
-	listtmp="/tmp/list.tmp"
+	listtmp="$HOME/.cache/list.tmp"
 	if [ -z "$nocacheupd" ]; then
 		CECHO "[INFO]" "$vert" -n && echo -n " Mise à jour forcée du cache des métadonnées "
 		DNF_CLEANCMD
@@ -1094,7 +1094,7 @@ GESTION-RPM() {
 }
 ################################################################################################################################
 GESTION-Flatpak() {
-	listtmpFP="/tmp/listFP.tmp"
+	listtmpFP="$HOME/.cache/listFP.tmp"
 	if EXISTS flatpak; then
 		flatpak="$(which flatpak 2>/dev/null)"
 		INIT-LOGFP || true
@@ -1395,12 +1395,12 @@ INIT-TEMPLOGS() {
 	# Ensure data and config directories exist
 	[ ! -d "$datadir" ] && { mkdir -p "$datadir" || true ;}
 	[ ! -d "$confdir" ] && { mkdir -p "$confdir" || true ;}
-	log="/tmp/${scriptname}-RPM.log"
-	logFP="/tmp/${scriptname}-Flatpak.log"
-	logerrorFP="/tmp/${scriptname}-Flatpak.error.log"
-	logerror="/tmp/${scriptname}-RPM.error.log"
-	bigerror="/tmp/${scriptname}.error.log"
-	biglog="/tmp/${scriptname}.log"
+	log="$HOME/.cache/${scriptname}-RPM.log"
+	logFP="$HOME/.cache/${scriptname}-Flatpak.log"
+	logerrorFP="$HOME/.cache/${scriptname}-Flatpak.error.log"
+	logerror="$HOME/.cache/${scriptname}-RPM.error.log"
+	bigerror="$HOME/.cache/${scriptname}.error.log"
+	biglog="$HOME/.cache/${scriptname}.log"
 	list="$datadir/RPMs.tmp.list"
 	listFP="$datadir/Flatpaks.tmp.list"
 	logerrorFPtmp="$logerrorFP"

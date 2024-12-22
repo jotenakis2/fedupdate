@@ -1,5 +1,9 @@
 # *CHANGELOG*
 
+## version 2.11
+-	bugfix log temporaires. maintenant dans $HOME/.cache
+
+
 ## version 2.10
 -	amélioration de la détection des erreur de dnf5.
 

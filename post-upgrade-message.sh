@@ -115,7 +115,7 @@ POSTUPGRADEDNF5() {
 	local first_date_readable=""
 	local last_date_readable=""
 	local last_three_entries=""
-	local tmp_combined_log="/tmp/offlineupgrade-combinedlog.log"
+	local tmp_combined_log="$HOME/.cache/offlineupgrade-combinedlog.log"
 	local line=""
 	local line_timestamp=""
 	local -i line_epoch=0
