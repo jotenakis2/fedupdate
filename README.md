@@ -78,7 +78,7 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
           Le script vérifiera si des mises à jour sont disponibles mais ne les installera pas,
 
--   **-m, --email**
+-   **-m, --notif_mail**
 
           Le script envoie un email si des mises à jour sont disponibles,
 

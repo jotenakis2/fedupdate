@@ -9,11 +9,11 @@
 
 - gestion du français dans l'analyse des fichiers dnf5.log (post-upgrade-message.sh). En fr, on a un mix de FR/EN dans les logs...
 
-- mode -m (--mail) : erreur UTF-8 corrigée.
+- mode -m (--notif_mail) : erreur UTF-8 corrigée.
 
-- mode -m (--mail) : mode disponible dorénavant même dans un terminal interactif.
+- mode -m (--notif_mail) : mode disponible dorénavant même dans un terminal interactif.
 
-- mode -m (--mail) : ajout option possible par défaut dans le fichier config.rc. relancer fedupdate -C pour regénérer un config.rc.
+- mode -m (--notif_mail) : ajout option possible par défaut dans le fichier config.rc. relancer fedupdate -C pour regénérer un config.rc.
 
 - mode -M (--nomail) : ajout de l'option pour outrepasser temporairement une option -m activée par défaut.
 
