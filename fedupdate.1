@@ -1,9 +1,9 @@
-.TH \fBfedupdate\fR 1 "17 Décembre 2024" "v1.6" "Documentation utilisateur"
+.TH \fBfedupdate\fR 1 "22 Décembre 2024" "v1.7" "Documentation utilisateur"
 .SH NAME
 \fBfedupdate\fR \- Cette commande met à jour un système FEDORA Linux.
 .SH SYNOPSIS
 .B fedupdate
-[-h] [-C] [-s] [-v] [-c] [-m] [-n] [-F] [-R] [-d] [-B] [-0] [-p] [-L] [-l] [-4] [-5] [-u] (ou arguments longs)
+[-h] [-C] [-s] [-v] [-c] [-m] [-M] [-n] [-F] [-R] [-d] [-B] [-0] [-p] [-L] [-l] [-4] [-5] [-u] (ou arguments longs)
 
 .SH DESCRIPTION
 Si des nouveaux paquets \fBFLATPAKs\fR sont disponibles, une mise à jour est lancée.
@@ -31,8 +31,11 @@ Toutes les infos sont affichées (mode "verbeux").
 .B \-c,--check
 Pour vérifier si des mises à jour sont disponibles sans les installer.
 .TP
-.B \-m,--email
+.B \-m,--mail
 Envoie un email si des mises à jour sont disponibles.
+.TP
+.B \-M,--nomail
+Annule l'option -m (utile si l'option -m est activée par défaut dans config.rc).
 .TP
 .B \-n,--notify
 Envoie une notification système si des mises à jour sont disponibles.
@@ -103,6 +106,8 @@ Une rotation des logs est effectuée à chaque exécution du programme.
 9 logs RPMs et 9 logs FLATPAKs sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 
 Le mode "verbeux" (\fB-v\fR) permet d'outrepasser le mode "pseudo-silencieux" (\fB-s\fR) si ce dernier est activé par défaut dans le fichier config.rc.
+
+Le mode -M permet d'outrepasser le mode -m si ce dernier est activé par défaut dans le fichier config.rc.
 
 .SH FILES
 .TP

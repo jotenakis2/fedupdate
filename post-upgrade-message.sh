@@ -123,6 +123,7 @@ POSTUPGRADEDNF5() {
 	local -i start_epoch=""
 	echo > "$tmp_combined_log"
 	chmod 666 "$tmp_combined_log" || true
+	rm -f "$failure" "$success"
 	# Recherche de la commande 'dnf5 offline _execute' dans les logs dnf5.log, dnf5.log.1, etc. jusqu'à .5
 	# log_file contient le nom du fichier où il aura trouvé la commande.
     for log_file in "$log_dir/$log_file_base"{,.{1..5}}; do
@@ -134,7 +135,7 @@ POSTUPGRADEDNF5() {
         fi
     done
     if [[ -z "$dnf5launch" ]]; then
-        echo "Aucune commande \"dnf offline _execute\" n a été trouvée dans les logs" | tee -a "$bigerror"
+        echo "Aucune commande \"dnf5 offline _execute\" n a été trouvée dans les logs" | tee -a "$bigerror"
         return 1
     fi
 	# Extract PID and timestamp from the launch line
@@ -156,14 +157,14 @@ POSTUPGRADEDNF5() {
 			    # Compare line_epoch to start_epoch
 			    if (line_epoch >= start_epoch && $0 ~ pid) {
 			        print
-			        if ($0 ~ /INFO DNF5 finished/) {
-			            exit
-			        }
+			        if ($0 ~ /INFO DNF5 (finished|a terminé)/) {
+         			   exit
+               		}
 			    }
 			}
 			' > "$tmp_combined_log"
-		if ! grep -q "INFO DNF5 finished" "$tmp_combined_log"; then
-		    echo "Fin de mise à jour 'INFO DNF5 finished' introuvable pour le PID $pid_dnf." >> "$bigerror"
+		if ! grep -Eq "INFO DNF5 (finished|a terminé)" "$tmp_combined_log"; then
+		    echo "Fin de mise à jour 'INFO DNF5 finished' ou 'INFO DNF5 a terminé' introuvable pour le PID $pid_dnf." >> "$bigerror"
 		fi
 		first_date="$(grep "\[$pid_dnf\]" "$tmp_combined_log" | head -n 1 | awk '{print $1}' || true)"
 		first_date_readable="$(FORMAT-DATE "$first_date")"
@@ -175,7 +176,7 @@ POSTUPGRADEDNF5() {
 		echo "Fin de mise à jour hors-ligne : $last_date_readable" >> "$success"
 #
 		last_three_entries=$(tail -n 3 "$tmp_combined_log" || true)
-		if grep -q "Transaction complete!" "$tmp_combined_log" && grep -q "DNF5 finished" "$tmp_combined_log"; then
+		if grep -q "Transaction complete!" "$tmp_combined_log" && grep -Eq "INFO DNF5 (finished|a terminé)" "$tmp_combined_log"; then
 		    {
 				echo "Fichier log : $log_file"
 	            echo "==> LA MISE À JOUR HORS-LIGNE A ÉTÉ ÉXECUTÉE CORRECTEMENT <=="

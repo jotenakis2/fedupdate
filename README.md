@@ -82,6 +82,10 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
           Le script envoie un email si des mises à jour sont disponibles,
 
+-   **-M, --nomail**
+
+          Le script annule l'envoie d'un email (utile si option -m est activée par défaut dans config.rc),
+
 -   **-n, --notify**
 
           Le script envoie une notification système si des mises à jour sont disponibles,
@@ -138,9 +142,9 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 -   Ce mot de passe, utilisé par la commande sudo, peut-être stocké en clair, ou chiffré si la bibliothèque openssl est installée.
 
--   Le mode "notification par email" (-m) et le mode "notification système" (-n) ne sont appliqués qu'en mode "vérification" (-c). Ils sont ignorés sinon.
+-   Il conserve également des options à activer par défaut.
 
--   Le mode "notification par email" (-m) n'est appliqué que si le script est lancé en arrière plan (via une tâche cron ou une unité systemd).
+-   Le mode "notification par email" (-m) et le mode "notification système" (-n) ne sont appliqués qu'en mode "vérification" (-c). Ils sont ignorés sinon.
 
 -   Le mode "notification par email" (-m) nécessite la commande mail et un MTA configuré (Mail Transport Agent, comme msmtp ou opensmtpd).
 
@@ -149,6 +153,8 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 -   9 logs RPMs et 9 logs FLATPAKs sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 
 -   Le mode "verbeux" (-v) permet d'outrepasser le mode "pseudo-silencieux" (-s) si ce dernier est activé par défaut dans le fichier config.rc.
+
+-   Le mode -M permet d'outrepasser le mode -m si ce dernier est activé par défaut dans le fichier config.rc.
 
 
 ## Dépendances

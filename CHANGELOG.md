@@ -1,5 +1,29 @@
 # *CHANGELOG*
 
+## version 2.10
+-	amélioration de la détection des erreur de dnf5.
+
+- gestion du français dans l'analyse des fichiers dnf5.log (post-upgrade-message.sh). En fr, on a un mix de FR/EN dans les logs...
+
+- mode -m (--mail) : erreur UTF-8 corrigée.
+
+- mode -m (--mail) : mode disponible dorénavant même dans un terminal interactif.
+
+- mode -m (--mail) : ajout option possible par défaut dans le fichier config.rc. relancer fedupdate -C pour regénérer un config.rc.
+
+- mode -M (--nomail) : ajout de l'option pour outrepasser temporairement une option -m activée par défaut.
+
+- bugfix : rotation inutile des logs quand une option inconnue est saisie.
+
+- rationalisation de l'utilisation de la fonction SUDOPASS (gère interaction sudo avec l'utilisateur).
+
+- ajout d'un log fedupdate.log qui stocke tout ce qui n'est pas liée à dnf / flatpak.
+
+- nettoyage de l'interface, les messages liés à la gestion des options est maintenant stocké dans le nouveau log fedupdate.log.
+
+- simplification de l'interface, un message synthétise les options retenues (après gestion des incompatibilités) venant de la ligne de commande ou de config.rc.
+
+
 ## version 2.05
 -	mode -C (check conf). bug fix : sudo demandait le mot de passe.
 
