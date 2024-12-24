@@ -115,7 +115,7 @@ POSTUPGRADEDNF5() {
     log_dir="/var/log"
     local log_files=()
     local log_file=""
-    log_files=("$log_dir/dnf5.log" "$log_dir/dnf5.log.1" "$log_dir/dnf5.log.2" "$log_dir/dnf5.log.3" "$log_dir/dnf5.log.4" "$log_dir/dnf5.log.5")
+    log_files=("$log_dir/dnf5.log.5" "$log_dir/dnf5.log.4" "$log_dir/dnf5.log.3" "$log_dir/dnf5.log.2" "$log_dir/dnf5.log.1" "$log_dir/dnf5.log")
     local -i pid_dnf=0
     local dnf5launch=""
     local first_date=""
