@@ -110,7 +110,6 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
           Le cache de dnf sera nettoyé et mis à jour,
 
-
 -   **-p, --poweroff**
 
           L'ordinateur sera éteint après la mise à jour des RPMs,

@@ -123,6 +123,7 @@ POSTUPGRADEDNF5() {
     local first_date_readable=""
     local last_date_readable=""
     local last_three_entries=""
+    local start_timestamp=""
     local tmp_filtered_log=""
     local reverse_tmp_filtered_log=""
     local temp_combined=""
@@ -139,7 +140,7 @@ POSTUPGRADEDNF5() {
 
     for log_file in "${log_files[@]}"; do
         if [[ -f "$log_file" ]]; then
-        	echo "DEBUG: concat - $log_file"
+        	echo "DEBUG: concatenate - $log_file"
             cat "$log_file" >> "$temp_combined"
         fi
     done
@@ -159,7 +160,6 @@ POSTUPGRADEDNF5() {
 
     # Extract PID and timestamp from the launch line
     pid_dnf=$(echo "$dnf5launch" | grep -o '\[[0-9]\+]' | tr -d '[]' || true)
-    local start_timestamp=""
     start_timestamp=$(echo "$dnf5launch" | awk '{print $1}')
     start_epoch=$(date --date="$start_timestamp" +%s 2>/dev/null || echo 0)
 
@@ -167,34 +167,34 @@ POSTUPGRADEDNF5() {
     echo "DEBUG: PID: $pid_dnf, Timestamp: $start_timestamp, Epoch: $start_epoch"
 
     if (( pid_dnf > 0 )); then
-	    # going trough the file starting from the end of the file
-		flock -x "$temp_combined" sh -c "
-		    tac '$temp_combined' | awk -v pid='${pid_dnf}' -v start_epoch='${start_epoch}' '
+		flock -x "$temp_combined" sh -c "												# flock -x to ensure only this script is touching temp_combined
+	  		awk -v pid='${pid_dnf}' -v start_epoch='${start_epoch}' '
 		        {
-		            # Check if the line contains the desired PID
-		            if (\$0 ~ \"\\\\[\" pid \"\\\\]\") {
-		                # Extract the timestamp and convert it to epoch
-		                line_timestamp = \$1
-		                cmd = \"date --date=\\\"\" line_timestamp \"\\\" +%s\"
-		                if ((cmd | getline line_epoch) > 0) {
-		                    close(cmd)
-		                    # Check the timestamp validity
-		                    if (line_epoch >= start_epoch) {
-		                        print \$0
+		        	# Store each line in an array with line numbers as keys
+					lines[NR] = \$0
+		        }
+		        END {
+		            for (i = NR; i > 0; i--) {											# we go through all the lines starting from the end.
+		                if (lines[i] ~ \"\\\\[\" pid \"\\\\]\") { 						# the line match with pid
+		                    line_timestamp = \$1										# we extract timestamp
+		                    cmd = \"date --date=\\\"\" line_timestamp \"\\\" +%s\"		# we convert to epoch
+		                    if ((cmd | getline line_epoch) > 0) {						# the cmd date returns 1 when successfull
+		                        close(cmd)
+		                        if (line_epoch >= start_epoch) {						# if current line is older or equal to start time
+		                            print lines[i]
+		                        }
+		                    } else {													# it fails to convert
+		                        continue												# then we go to the next line.
 		                    }
-		                } else {
-		                    # Skip the line if timestamp parsing fails
-		                    next
+		                }
+		                if (lines[i] ~ /offline _execute/) {							# the line contains offline _execute,
+							break														# we exit the for loop
 		                }
 		            }
-		            # Exit as soon as offline _execute is found
-		            if (\$0 ~ /offline _execute/) {
-		                exit
-		            }
 		        }
-		    ' > '$reverse_tmp_filtered_log'
+			' '$temp_combined' > '$reverse_tmp_filtered_log'
 		"
-        sleep 1
+		sleep 1
 	    # Reverse the filtered output to restore chronological order
 	    tac "$reverse_tmp_filtered_log" > "$tmp_filtered_log"
 	    #rm -f "$reverse_tmp_filtered_log" "$temp_combined"
