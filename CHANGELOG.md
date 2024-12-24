@@ -1,5 +1,15 @@
 # *CHANGELOG*
 
+## version 2.12
+-	ajout du mode -D, --deletelog pour supprimer tous les logs de fedupdate.
+
+- amélioration du mode verbose (dnf clean all, dnf makecache et dnf check-update)
+
+- bugfix gestion des fedupdate.log. Maintenant cohérent avec les options -0 et -D.
+
+- nettoyage de code.
+
+
 ## version 2.11
 -	bugfix log temporaires. maintenant dans $HOME/.cache
 

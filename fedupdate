@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=2.11
+ver=2.13
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -13,6 +13,7 @@ cmdline="$*" 				# arguments de la ligne de commande
 scriptfullname="$0" 		# chemin complet du script
 scriptname="${0##*/}" 		# équivalent à basename $0, mais en pur bash.
 
+# improve post-upgrade-message to be quicker.
 
 ################################################# flatpak COMMANDS ##############################################################
 FPK_CHECKUPDCMD() {
@@ -53,18 +54,40 @@ FPK_UPDCMD() {
 
 ################################################# dnf COMMANDS #################################################################
 DNF_CLEANCMD() { # nettoyage complet du cache
+	local tmp="$HOME/.cache/file.tmp"
 	SUDOPASS
-	# shellcheck disable=SC2024
-	sudo $dnf clean all -q >>"$log" 2>>"$logerror" || true
+	if [ "$silent" = "yes"  ]; then
+		# shellcheck disable=SC2024
+		sudo $dnf clean all -q >>"$log" 2>>"$logerror" || true
+	else
+		echo -e "$gris"
+		# shellcheck disable=SC2024
+		sudo $dnf clean all 2>&1 | tee "$tmp" || true
+		echo -ne "$reinit"
+		tee -a "$log" "$logerror" < "$tmp" > /dev/null
+		rm -f "$tmp"
+	fi
+	unset tmp
 	return 0
 }
 #-------------------------------------------------------------------------------------------
 DNF_CACHEUPDCMD() { # création du cache
+	local tmp="$HOME/.cache/file2.tmp"
 	SUDOPASS
-	{ trap STOP-SPINNER EXIT && START-SPINNER; }
+	if [ "$silent" = "yes"  ]; then
+		{ trap STOP-SPINNER EXIT && START-SPINNER; }
+			# shellcheck disable=SC2024
+			sudo $dnf makecache -q >>"$log" 2>>"$logerror" || true
+		{ STOP-SPINNER && echo "terminée."; }
+	else
+		echo -e "$gris"
 		# shellcheck disable=SC2024
-		sudo $dnf makecache -q >>"$log" 2>>"$logerror" || true
-	{ STOP-SPINNER && echo "terminée."; }
+		sudo $dnf makecache 2>&1 | tee "$tmp" || true
+		echo -ne "$reinit"
+		tee -a "$log" "$logerror" < "$tmp" > /dev/null
+		rm -f "$tmp"
+	fi
+	unset tmp
 	return 0
 }
 #-------------------------------------------------------------------------------------------
@@ -86,10 +109,10 @@ DNF_CHECKUPDCMD() { # vérification de la présence de mise à jour
 		echo -e "$gris"
 		if [ "$changelog" = "" ]; then
 			# shellcheck disable=SC2024
-			sudo $dnf check-update -q > >(tee "$listtmp" | sed '/^$/d') 2> >(tee -a "$logerror" >&2) || true
+			sudo $dnf check-update > >(tee "$listtmp" | sed '/^$/d') 2> >(tee -a "$logerror" >&2) || true
 		else
 			# shellcheck disable=SC2024
-			sudo $dnf check-update --changelogs -q > >(tee "$listtmp" | sed '/^$/d') 2> >(tee -a "$logerror" >&2) || true
+			sudo $dnf check-update --changelogs > >(tee "$listtmp" | sed '/^$/d') 2> >(tee -a "$logerror" >&2) || true
 		fi
 		echo -ne "$reinit"
 	fi
@@ -726,7 +749,7 @@ STOP-SPINNER() {
 ################################################################################################################################
 USAGE() {
 	CECHO "[INFO]" "$vert" -n && \
-	echo -e " utilisation: ${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-v] [-c] [-m] [-M] [-n] [-F] [-R] [-d] [-B] [-b] [-0] [-p] [-L] [-u] [-l]${reinit}"
+	echo -e " utilisation: ${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-v] [-c] [-m] [-M] [-n] [-F] [-R] [-d] [-B] [-b] [-0] [-p] [-L] [-u] [-l] [-D]${reinit}"
 	CECHO "[INFO]" "$vert" -n && echo -e " Arguments longs également possibles, voir ${gras}${bleu}${scriptfullname} --help${reinit}."
 	return 0
 }
@@ -737,7 +760,7 @@ DISPLAY-HELP() {
 	PRINTBANNER-CENTERED "AIDE" "." "$cyan"
 	echo -ne "$reinit" || true
 	cat <<< "$(echo -e "${bleu}${underline}UTILISATION${reinit}
-	${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-v] [-c] [-m] [-M] [-n] [-F] [-R] [-d] [-B] [-b] [-0] [-p] [-L] [-u] [-l]${reinit} (ou arguments longs)
+	${gras}${bleu}${scriptfullname} ${vert}[-h] [-C] [-s] [-v] [-c] [-m] [-M] [-n] [-F] [-R] [-d] [-B] [-b] [-0] [-p] [-L] [-u] [-l] [-D]${reinit} (ou arguments longs)
 
 ${bleu}${underline}DESCRIPTION${reinit}
 	Ce script vérifie si les paquets ${jaune}RPMs${reinit}, et éventuellement ${jaune}FLATPAKs${reinit}, de votre ${jaune}${ID^}${reinit} (${gras}$host${reinit}) nécessitent ${gras}une mise à jour${reinit}.
@@ -761,7 +784,8 @@ ${bleu}${underline}OPTIONS${reinit}
         ${vert}-d, --directrpms     ${reinit}Avec cette option (${gras}non recommandée${reinit}), la mise à jour des ${jaune}RPMs${reinit} sera directe, c'est-à-dire en ligne ($modeD),
         ${vert}-B, --nocacheupd     ${reinit}Avec cette option, le script ne fera pas de mise à jour forcée du cache de ${gras}${bleu}dnf${reinit} ($modeB),
         ${vert}-b, --forcecacheupd  ${reinit}Avec cette option, le script fera une mise à jour forcée du cache de ${gras}${bleu}dnf${reinit} ($modeBB),
-        ${vert}-0, --nolog          ${reinit}Pour détruire les logs à la fin de l'éxécution du script ($mode0),
+        ${vert}-0, --nolog          ${reinit}Pour ne pas créer de log ($mode0),
+        ${vert}-D, --deletelog      ${reinit}Pour supprimer tous les logs de ${gras}${bleu}$scriptname${reinit},
         ${vert}-l, --limitlog       ${reinit}Pour ne conserver les logs qu'en cas de mise à jour ($modeLP),
         ${vert}-p, --poweroff       ${reinit}Pour éteindre l'ordinateur après la mise à jour ($modeP),
         ${vert}-L, --changelog      ${reinit}Pour afficher la liste des modifications apportées par les mises à jour des ${jaune}RPMs${reinit} ($modeCL),
@@ -781,7 +805,7 @@ ${bleu}${underline}NOTES${reinit}
 	- Le $modeM (${vert}-m${reinit}) et le $modeN (${vert}-n${reinit}) ne sont appliqués qu'en $modeC (${vert}-c${reinit}). Ils sont ignorés sinon.
 	- Le $modeM (${vert}-m${reinit}) nécessite la commande ${gras}${bleu}mail${reinit} et un MTA configuré (Mail Transport Agent, comme ${gras}${bleu}msmtp${reinit} ou ${gras}${bleu}opensmtpd${reinit}).
 	- Une rotation des logs est effectuée dans ${gras}${bleu}$datadir${reinit} à chaque exécution de ${gras}${bleu}$scriptname${reinit}.
-	- ${gras}9 logs${reinit} ${jaune}RPMs${reinit} et ${gras}9 logs${reinit} ${jaune}FLATPAKs${reinit} sont conservés au maximum. Les logs vides sont automatiquement supprimés.
+	- ${gras}9 logs${reinit} de chaque type sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 	- Le $modeV (${vert}-v${reinit}) permet d'outrepasser le $modeS (${vert}-s${reinit}) si ce dernier est activé par défaut dans ${gras}${bleu}$(basename "$config")${reinit},
 	- Le $modeMM (${vert}-M${reinit}) permet d'outrepasser le $modeM (${vert}-m${reinit}) si ce dernier est activé par défaut dans ${gras}${bleu}$(basename "$config")${reinit}.
 ")" || true
@@ -1031,7 +1055,7 @@ CHECKRPM() {
 	DNF_CHECKUPDCMD
 	# Format and filter list of updates
 	if [ "$silent" = "yes" ] && [ "$changelog" = "yes" ]; then
-		$bat $listtmp
+		$bat "$listtmp"
 	fi
 	awk '/^Changelogs/ {exit} {if (NF > 0) printf "  %-45s %-7s\n", $1, $2}' "$listtmp" > "$list" || true
 	rm -f "$listtmp"
@@ -1152,7 +1176,7 @@ GESTION-Flatpak() {
 	return 0
 }
 ################################################################################################################################
-GESTION-OPTIONS-LOG() { # management des options du script sélectionnées via la ligne de commande ou le fichier de conf
+GESTION-OPTIONS() { # management des options du script sélectionnées via la ligne de commande ou le fichier de conf
 	if [ "$datecreated" != "inconnue" ]; then
 		CECHO "[INFO]" "$vert" -n
 		echo -e " Date d'installation de ${ID^} (${gras}$host${reinit}) :${italic}$datecreated${reinit} (il y a ${days_since_install} $day)" || true
@@ -1175,6 +1199,7 @@ GESTION-OPTIONS-LOG() { # management des options du script sélectionnées via l
 	[ "$changelog" = "yes" ] && echo -e " $modeCL (${vert}-L${reinit})." >> "$biglog"
 	[ "$distrupgrade" = "yes" ] && echo -e " $modeU (${vert}-u${reinit})." >> "$biglog"
 	[ "$checkonly" = "yes" ] && echo -e " $modeC (${vert}-c${reinit})." >> "$biglog"
+	[ "$deletelog" = "yes" ] && echo -e " ${jaune}mode \"suppression des logs\"${reinit} (${vert}-D${reinit})." >> "$biglog"
 	[ "$forcednf4" = "yes" ] && { echo -e " $mode4 (${vert}-4${reinit})." >> "$biglog" ; dnf="/usr/bin/dnf4" ;}
 	[ "$forcednf5" = "yes" ] && { echo -e " $mode5 (${vert}-5${reinit})." >> "$biglog" ; dnf="/usr/bin/dnf5" ;}
 #----------------------------------
@@ -1274,7 +1299,7 @@ GESTION-OPTIONS-LOG() { # management des options du script sélectionnées via l
 # Finalisation
 	CECHO "[INFO]" "$vert" -n && echo -en " Options retenues (arguments longs) : ${gras}${vert}" | tee -a "$biglog"
 	for opts in silent verbose help checkonly notif_email nomail notif noflatpak norpm nolog checkdeps directrpms nocacheupd \
-				forcecacheupd poweroff changelog forcednf4 forcednf5 distrupgrade limitlog ; do
+				forcecacheupd poweroff changelog forcednf4 forcednf5 distrupgrade limitlog deletelog ; do
 	    if [ "${!opts}" = "yes" ]; then
        	echo -n "--$opts " | tee -a "$biglog"
        fi
@@ -1362,7 +1387,7 @@ FINAL-LOGS() {
 	if [ "$limitlog" = "" ] ; then # si les modes limitlog et nolog ne sont pas activés, on tourne les logs
 		[ "$nolog" = "" ] && islogrotate="yes"
 	fi
-	for fiche in "$logerrorFPtmp" "$logerrortmp" "$logtmp" "$logFPtmp" "$bigerrortmp"; do
+	for fiche in "$logerrorFPtmp" "$logerrortmp" "$logtmp" "$logFPtmp" "$bigerrortmp" "$biglogtmp"; do
 		if [ "$nolog" = "yes" ]; then
 			rm -f "$fiche"
 		else
@@ -1401,8 +1426,8 @@ INIT-TEMPLOGS() {
 	logerror="$HOME/.cache/${scriptname}-RPM.error.log"
 	bigerror="$HOME/.cache/${scriptname}.error.log"
 	biglog="$HOME/.cache/${scriptname}.log"
-	list="$datadir/RPMs.tmp.list"
-	listFP="$datadir/Flatpaks.tmp.list"
+	list="$HOME/.cache/RPMs.tmp.list"
+	listFP="$HOME/.cache/Flatpaks.tmp.list"
 	logerrorFPtmp="$logerrorFP"
 	logerrortmp="$logerror"
 	logtmp="$log"
@@ -1466,6 +1491,7 @@ START() {
 	nomail=""
 	errorargs=""
 	error=""
+	deletelog=""
 	pattern_error="'error|erreur|cannot install|warning|There is already an offline transaction queued'"
 	modeS="${jaune}mode \"pseudo-silencieux\"${reinit}"
 	modeV="${jaune}mode \"verbeux\"${reinit}"
@@ -1475,7 +1501,7 @@ START() {
 	modeN="${jaune}mode \"notification système\"${reinit}"
 	modeF="${jaune}mode \"sans gestion des FLATPAKs\"${reinit}"
 	modeR="${jaune}mode \"sans gestion des RPMs\"${reinit}"
-	mode0="${jaune}mode \"sans conservation des logs\"${reinit}"
+	mode0="${jaune}mode \"zéro log\"${reinit}"
 	modeD="${jaune}mode \"mise à jour directe\"${reinit}"
 	modeCC="${jaune}mode \"contrôle de fonctionnement\"${reinit}"
 	modeB="${jaune}mode \"pas de mise à jour du cache\"${reinit}"
@@ -1567,6 +1593,7 @@ THE-END() {
 	# Final message
 	CECHO "[INFO]" "$vert" -n && echo -e " Script terminé avec $1 à $(DATE-ET-HEURE)."
 	PRINTBANNER-CENTERED "" "*" "$gras$bleu"
+	export LANG="$LANG0"
 	return 0
 }
 ################################################################################################################################
@@ -1596,17 +1623,18 @@ LOAD-CONFIGRC() {
 return 0
 }
 ################################################################################################################################
-
-
+DELETE-LOG() {
+	CECHO "[INFO]" "$vert" -n && echo " Suppression de tous les logs."
+	rm -f "$datadir"/*.log*
+}
 ################################################################################################################################
-#                   CORPS DU SCRIPT                                                                                            #
-################################################################################################################################
-START || true
-
-# gestion de la ligne de commande avec arguments courts ou longs
-	options=$(getopt -o 'svhcmMnFR0CdBbpL45ul' \
+GESTION-ARGS() {
+	local options
+	local arg
+	# gestion de la ligne de commande avec arguments courts ou longs
+	options=$(getopt -o 'svhcmMnFR0CdBbpL45ulD' \
 	-l 'silent,verbose,help,checkonly,notif_mail,nomail,notify,noflatpak,norpm,nolog,checkdeps,directrpms,nocacheupd,forcecacheupd,poweroff, \
-	changelog,forcednf4,forcednf5,distrupgrade,limitlog' -- "$@" 2>/dev/null) || ERROR-ARGS
+	changelog,forcednf4,forcednf5,distrupgrade,limitlog,deletelog' -- "$@" 2>/dev/null) || ERROR-ARGS
 	eval set -- "$options"
 	while true; do
 		case "$1" in
@@ -1630,6 +1658,7 @@ START || true
 			-5|--forcednf5)		USE-DNF5					; shift ;;
 			-u|--distrupgrade)	distrupgrade="yes"			; shift ;;
 			-l|--limitlog)		limitlog="yes"				; shift ;;
+			-D|--deletelog)		deletelog="yes"				; shift ;;
 			--)                 shift						; break ;; # End of options
 			*)                  ERROR-ARGS							;;
 		esac
@@ -1639,18 +1668,24 @@ START || true
 			ERROR-ARGS
 		fi
 	done
-# /fin de gestion de la ligne de commande.
+	# /fin de gestion de la ligne de commande.
+	return 0
+}
+################################################################################################################################
 
-
-# Coeur du script
- 	LOAD-CONFIGRC
-	GESTION-OPTIONS-LOG || true
-	[ "$help" = "yes" ]         && 	 DISPLAY-HELP                # mode -h (autonome)
-	[ "$checkdeps" = "yes" ]    &&   CHECK 	         			 # mode -C (autonome)
-	[ -z "$noflatpak"         ] && { GESTION-Flatpak || true ; }
-	[ -z "$norpm"             ]	&& { GESTION-RPM     || true ; }
-	[ "$distrupgrade" = "yes" ] && { DISTRO-UPGRADE  || true ; } # mode -u
-# /fin du coeur du script
-
-THE-END "succès" || true
-exit 0
+#################################################################################################################################
+#                   CORPS DU SCRIPT                                                                                             #
+#################################################################################################################################
+START || true													 	 # initialisation du script 								#
+GESTION-ARGS "$@"													 # gestion des arguments de la ligne de commande			#
+LOAD-CONFIGRC														 # gestion des arguments du fichier config.rc				#
+GESTION-OPTIONS || true										 		 # gestion des options (incompatibilités, vérif)			#
+[ "$deletelog" = "yes" ]    && 	 DELETE-LOG					 		 # mode -D													#
+[ "$help" = "yes" ]         && 	 DISPLAY-HELP                		 # mode -h (autonome)										#
+[ "$checkdeps" = "yes" ]    &&   CHECK 	         			 		 # mode -C (autonome)										#
+[ -z "$noflatpak" ]		    && { GESTION-Flatpak || true ; } 		 # Flatpak													#
+[ -z "$norpm" ]				&& { GESTION-RPM     || true ; } 		 # RPM														#
+[ "$distrupgrade" = "yes" ] && { DISTRO-UPGRADE  || true ; } 		 # mode -u													#
+THE-END "succès" || true									 		 # finalisation du script (gestion des logs, ...)			#
+exit 0																 # sortie propre											#
+#################################################################################################################################

@@ -1,9 +1,9 @@
-.TH \fBfedupdate\fR 1 "22 Décembre 2024" "v1.8" "Documentation utilisateur"
+.TH \fBfedupdate\fR 1 "23 Décembre 2024" "v1.9" "Documentation utilisateur"
 .SH NAME
 \fBfedupdate\fR \- Cette commande met à jour un système FEDORA Linux.
 .SH SYNOPSIS
 .B fedupdate
-[-h] [-C] [-s] [-v] [-c] [-m] [-M] [-n] [-F] [-R] [-d] [-B] [-0] [-p] [-L] [-l] [-4] [-5] [-u] (ou arguments longs)
+[-h] [-C] [-s] [-v] [-c] [-m] [-M] [-n] [-F] [-R] [-d] [-B] [-0] [-D] [-p] [-L] [-l] [-4] [-5] [-u] (ou arguments longs)
 
 .SH DESCRIPTION
 Si des nouveaux paquets \fBFLATPAKs\fR sont disponibles, une mise à jour est lancée.
@@ -53,7 +53,10 @@ Pour faire une mise à jour directe, sans redémarrage, plutôt qu'une mise à j
 Pour ignorer la mise à jour forcée du cache de dnf.
 .TP
 .B \-0,--nolog
-Pour détruire les logs.
+Pour ne pas faire de logs.
+.TP
+.B \-D,--deletelog
+Pour supprimer tous les logs de fedupdate.
 .TP
 .B \-p,--poweroff
 Pour éteindre la machine après la mise à jour.
@@ -103,7 +106,7 @@ Le mode "notification par email" (\fB-m\fR) nécessite la commande mail et un MT
 
 Une rotation des logs est effectuée à chaque exécution du programme.
 
-9 logs RPMs et 9 logs FLATPAKs sont conservés au maximum. Les logs vides sont automatiquement supprimés.
+9 logs de chaque type sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 
 Le mode "verbeux" (\fB-v\fR) permet d'outrepasser le mode "pseudo-silencieux" (\fB-s\fR) si ce dernier est activé par défaut dans le fichier config.rc.
 

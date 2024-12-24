@@ -21,7 +21,7 @@ Le script d'installation va aussi installer trois unités systemd utilisateur :
 
 **checkupdate.service** : permet de lancer fedupdate en mode vérification uniquement avec notification système (*fedupdate* -c -n).
 
-**checkupdate.timer** : permet de vérifier la présence de mise à jour toutes les 2 heures.
+**checkupdate.timer** : permet de vérifier la présence de mise à jour toutes les 3 heures.
 
 **postupgrade.service** : permet de vérifier, au 1er reboot, si une mise à jour hors-ligne s'est bien passée.
 
@@ -100,11 +100,16 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 -   **-d, --direct**
 
-          La mise à jour des RPMs sera directe, c'est-à-dire en ligne (**non recommandé**"),
+          La mise à jour des RPMs sera directe, c'est-à-dire en ligne (non recommandé),
 
 -   **-B, --nocacheupd**
 
-          La mise à jour forcée du cache de dnf est ignorée (**non recommandé**),
+          La mise à jour forcée du cache de dnf est ignorée,
+
+-   **-d, --forcecacheupd**
+
+          Le cache de dnf sera nettoyé et mis à jour,
+
 
 -   **-p, --poweroff**
 
@@ -113,6 +118,10 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 -   **-0, --nolog**
 
           Les fichiers logs ne seront pas conservés.
+
+-   **-D, --deletelog**
+
+          Tous les logs de fedupdate seront supprimés.
 
 -   **-4, --forcednf4**
 
@@ -150,7 +159,7 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 -   Une rotation des logs est effectuée à chaque exécution du script.
 
--   9 logs RPMs et 9 logs FLATPAKs sont conservés au maximum. Les logs vides sont automatiquement supprimés.
+-   9 logs de chaque type sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 
 -   Le mode "verbeux" (-v) permet d'outrepasser le mode "pseudo-silencieux" (-s) si ce dernier est activé par défaut dans le fichier config.rc.
 

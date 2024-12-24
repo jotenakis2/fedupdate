@@ -17,8 +17,10 @@ CHECK_DNF_VERSION() {
     version_info=$($dnf --version 2>/dev/null || echo "unknown")
     if echo "$version_info" | grep -q "4\."; then
         echo "dnf4"
+        return 0
     elif echo "$version_info" | grep -q "5\."; then
         echo "dnf5"
+        return 0
     else
         echo "Unable to determine DNF version." >> "$bigerror"
         return 1
@@ -29,6 +31,7 @@ FORMAT-DATE() {
     local formatted_date=""
     formatted_date=$(date -d "$1" "+%d %B %Y à %Hh%Mmin%Ssec" 2>/dev/null || echo "Invalid date")
     echo "$formatted_date"
+    return 0
 }
 ################################################################################################################################
 CHECK-NEW-CONF-FILE() { # recherche de fichiers rpmnew/rpmsave crées par une maj
@@ -75,6 +78,7 @@ CHECK-NEW-CONF-FILE() { # recherche de fichiers rpmnew/rpmsave crées par une ma
             fi
         fi
     done
+    return 0
 }
 ################################################################################################################################
 POSTUPGRADEDNF4() {
@@ -99,120 +103,160 @@ POSTUPGRADEDNF4() {
 	        grep "${update_time}" "$log_file" > "$failure"
 	        notify-send -i "$icon" -u critical --app-name "Mise à jour hors-ligne" "Résultat inconnu." "Fichier de log : $failure"
 	    fi
+		return 0
 	else
 		echo "Log file $log_file not found" >> "$bigerror"
+		return 1
 	fi
 }
 ################################################################################################################################
 POSTUPGRADEDNF5() {
-	local log_dir="/var/log"
-	local log_file_base="dnf5.log"
-	local log_file=""
-	local -i pid_dnf=0
-	local dnf5launch=""
-	local first_date=""
-	local last_date=""
-	local first_date_readable=""
-	local last_date_readable=""
-	local last_three_entries=""
-	local tmp_combined_log="$HOME/.cache/offlineupgrade-combinedlog.log"
-	local line=""
-	local line_timestamp=""
-	local -i line_epoch=0
-	local start_timestamp=""
-	local -i start_epoch=""
-	echo > "$tmp_combined_log"
-	chmod 666 "$tmp_combined_log" || true
-	rm -f "$failure" "$success"
-	# Recherche de la commande 'dnf5 offline _execute' dans les logs dnf5.log, dnf5.log.1, etc. jusqu'à .5
-	# log_file contient le nom du fichier où il aura trouvé la commande.
-    for log_file in "$log_dir/$log_file_base"{,.{1..5}}; do
-        if [[ -f "$log_file" ]]; then
-            dnf5launch=$(awk '{lines[NR] = $0} END {for (i = NR; i > 0; i--) if (lines[i] ~ /dnf5 offline _execute|dnf offline _execute/) {print lines[i]; exit}}' "$log_file" || true)
-            if [[ -n "$dnf5launch" ]]; then
-                break
-            fi
-        fi
-    done
+    local log_dir=""
+    log_dir="/var/log"
+    local log_files=()
+    local log_file=""
+    log_files=("$log_dir/dnf5.log" "$log_dir/dnf5.log.1" "$log_dir/dnf5.log.2" "$log_dir/dnf5.log.3" "$log_dir/dnf5.log.4" "$log_dir/dnf5.log.5")
+    local -i pid_dnf=0
+    local dnf5launch=""
+    local first_date=""
+    local last_date=""
+    local first_date_readable=""
+    local last_date_readable=""
+    local last_three_entries=""
+    local tmp_combined_log=""
+    tmp_combined_log="$HOME/.cache/offlineupgrade-combinedlog.log"
+    local -i start_epoch=0
+    local temp_output=""
+    temp_output="/tmp/out.tmp"
+
+    # Prepare the combined log file
+    true > "$tmp_combined_log"
+    true > "$temp_output"
+    chmod 600 "$tmp_combined_log" || true
+    rm -f "$failure" "$success"
+
+    # Search for the last occurrence of "dnf5 offline _execute" in the logs
+    dnf5launch=$(tac "${log_files[@]}" 2>/dev/null | \
+        awk '/dnf5 offline _execute|dnf offline _execute/ {print; exit}' || true)
+
     if [[ -z "$dnf5launch" ]]; then
-        echo "Aucune commande \"dnf5 offline _execute\" n a été trouvée dans les logs" | tee -a "$bigerror"
+        echo "Aucune commande \"dnf5 offline _execute\" n'a été trouvée dans les logs" | tee -a "$bigerror"
         return 1
     fi
-	# Extract PID and timestamp from the launch line
-	pid_dnf=$(echo "$dnf5launch" | grep -o '\[[0-9]\+]' | tr -d '[]' || true)
-	start_timestamp=$(echo "$dnf5launch" | awk '{print $1}')
-	start_epoch=$(date --date="$start_timestamp" +%s)
-	if (( pid_dnf > 0 )); then
-		# Combiner toutes les entrées de log correspondantes au pid trouvé (+ timestamp cohérent) dans un fichier temporaire
-		cat "$log_dir/$log_file_base"{,.{1..5}} | awk -v pid="[$pid_dnf]" -v start_epoch="$start_epoch" '
-			{
-			    # Extract the timestamp directly from $1
-			    line_timestamp = $1
 
-			    # Convert the timestamp to epoch
-			    cmd = "date --date=\"" line_timestamp "\" +%s"
-			    cmd | getline line_epoch
-			    close(cmd)
+    # Debug: Log the extracted dnf5launch
+    echo "DEBUG: Extracted dnf5launch: $dnf5launch"
 
-			    # Compare line_epoch to start_epoch
-			    if (line_epoch >= start_epoch && $0 ~ pid) {
-			        print
-			        if ($0 ~ /INFO DNF5 (finished|a terminé)/) {
-         			   exit
-               		}
-			    }
-			}
-			' > "$tmp_combined_log"
-		if ! grep -Eq "INFO DNF5 (finished|a terminé)" "$tmp_combined_log"; then
-		    echo "Fin de mise à jour 'INFO DNF5 finished' ou 'INFO DNF5 a terminé' introuvable pour le PID $pid_dnf." >> "$bigerror"
-		fi
-		first_date="$(grep "\[$pid_dnf\]" "$tmp_combined_log" | head -n 1 | awk '{print $1}' || true)"
-		first_date_readable="$(FORMAT-DATE "$first_date")"
-		{ echo "$first_date"; echo; } > "$success"
-		echo "Début de mise à jour hors-ligne : $first_date_readable" >> "$success"
-#
-		last_date="$(grep "\[$pid_dnf\]" "$tmp_combined_log" | tail -n 1 | awk '{print $1}' || true)"
-		last_date_readable=$(FORMAT-DATE "$last_date")
-		echo "Fin de mise à jour hors-ligne : $last_date_readable" >> "$success"
-#
-		last_three_entries=$(tail -n 3 "$tmp_combined_log" || true)
-		if grep -q "Transaction complete!" "$tmp_combined_log" && grep -Eq "INFO DNF5 (finished|a terminé)" "$tmp_combined_log"; then
-		    {
-				echo "Fichier log : $log_file"
-	            echo "==> LA MISE À JOUR HORS-LIGNE A ÉTÉ ÉXECUTÉE CORRECTEMENT <=="
-	            echo
-	            echo "--------------------------------"
-	            echo "$dnf5launch"
-	            grep "INFO.*install" "$tmp_combined_log" | grep -v start || true
-	            echo "$last_three_entries"
-	            echo "--------------------------------"
-	            echo
-				echo "Erreurs éventuelles :"
-				grep -i "error" "$tmp_combined_log" || echo "Aucune erreur trouvée"
-				echo
-		    } >> "$success"
-		    CHECK-NEW-CONF-FILE || true
-		    notify-send -i "$icon" --app-name "Mise à jour hors-ligne" "Effectuée correctement le $first_date_readable." "Fichier de log : $success"
-		else
-		    {
-				echo "Fichier log : $log_file"
-	            echo "==> LA MISE À JOUR HORS-LIGNE SEMBLE AVOIR ÉCHOUÉ  <=="
-	            echo "$last_three_entries"
-	            echo
-	            echo "--------------------------------"
-	            cat "$tmp_combined_log"
-	            echo "--------------------------------"
-				echo "Erreurs éventuelles :"
-				grep -i "error" "$tmp_combined_log" || echo "Aucune erreur trouvée"
-				echo
-			} >> "$failure"
-		    notify-send -i "$icon" -u critical --app-name "Mise à jour hors-ligne" "En échec le $last_date_readable." "Fichier de log : $failure"
-		fi
-		return 0
-	else
-		echo "Erreur de récupération du PID de la dernière commande dnf5 offline _execute" | tee "$bigerror"
-		return 1
-	fi
+    # Extract PID and timestamp from the launch line
+    pid_dnf=$(echo "$dnf5launch" | grep -o '\[[0-9]\+]' | tr -d '[]' || true)
+    local start_timestamp=""
+    start_timestamp=$(echo "$dnf5launch" | awk '{print $1}')
+    start_epoch=$(date --date="$start_timestamp" +%s 2>/dev/null || echo 0)
+
+    # Debug: Log PID and timestamp
+    echo "DEBUG: PID: $pid_dnf, Timestamp: $start_timestamp, Epoch: $start_epoch"
+
+    if (( pid_dnf > 0 )); then
+	    # Process each log file starting from the most recent
+	    for log_file in "${log_files[@]}"; do
+	        if [[ -f "$log_file" ]]; then
+				# going trough the file starting from the end of the file
+	            tac "$log_file" | awk -v pid="${pid_dnf}" -v start_epoch="${start_epoch}" '
+	              {
+	                    # Check if the line contains the desired PID
+	                    if ($0 ~ "\\[" pid "\\]") {
+	                        # Extract the timestamp and convert it to epoch
+	                        line_timestamp = $1
+	                        cmd = "date --date=\"" line_timestamp "\" +%s"
+	                        if ((cmd | getline line_epoch) > 0) {
+	                            close(cmd)
+	                            # Check the timestamp validity
+	                            if (line_epoch >= start_epoch) {
+	                                print $0
+	                            }
+	                        } else {
+	                            # Skip the line if timestamp parsing fails
+	                            next
+	                        }
+	                    }
+
+	                    # Exit as soon as "offline _execute" is found
+	                    if ($0 ~ /offline _execute/) {
+	                        exit
+	                    }
+	              }
+	            ' > "$temp_output"
+
+	            # Stop processing other logs if "offline _execute" is found
+	            if grep -q "offline _execute" "$temp_output"; then
+	                break
+	            fi
+	        fi
+	    done
+	    # Reverse the filtered output to restore chronological order
+	    tac "$temp_output" > "$tmp_combined_log"
+	    rm -f "$temp_output"
+
+        if ! grep -Eq "INFO DNF5 (finished|a terminé)" "$tmp_combined_log"; then
+            echo "Fin de mise à jour 'INFO DNF5 finished' ou 'INFO DNF5 a terminé' introuvable pour le PID $pid_dnf." >> "$bigerror"
+        fi
+
+        # Extract first and last timestamps from the combined log
+        first_date=$(grep "\[$pid_dnf\]" "$tmp_combined_log" | head -n 1 | awk '{print $1}' || true)
+        first_date_readable=$(FORMAT-DATE "$first_date")
+        echo "Début de mise à jour hors-ligne : $first_date_readable" | tee -a "$success"
+
+        last_date=$(grep "\[$pid_dnf\]" "$tmp_combined_log" | tail -n 1 | awk '{print $1}' || true)
+        last_date_readable=$(FORMAT-DATE "$last_date")
+        echo "Fin de mise à jour hors-ligne : $last_date_readable" | tee -a "$success"
+
+        # Capture the last three entries from the combined log
+        last_three_entries=$(tail -n 3 "$tmp_combined_log" || true)
+        # Debug: Log the extracted last_three_entries
+        echo "DEBUG: Extracted last_three_entries: "
+        echo "$last_three_entries"
+
+        # Final status checks
+        if grep -q "Transaction complete!" "$tmp_combined_log" && \
+           grep -Eq "INFO DNF5 (finished|a terminé)" "$tmp_combined_log"; then
+            {
+                echo "Fichier log : ${log_files[0]}"
+                echo "==> LA MISE À JOUR HORS-LIGNE A ÉTÉ ÉXÉCUTÉE CORRECTEMENT <=="
+                echo
+                echo "--------------------------------"
+                echo "$dnf5launch"
+                grep "INFO.*install" "$tmp_combined_log" | grep -v start || true
+                echo "$last_three_entries"
+                echo "--------------------------------"
+                echo
+                echo "Erreurs éventuelles :"
+                grep -i "error" "$tmp_combined_log" || echo "Aucune erreur trouvée"
+                echo
+            } >> "$success"
+            CHECK-NEW-CONF-FILE || true
+            notify-send -i "$icon" --app-name "Mise à jour hors-ligne" \
+                        "Effectuée correctement le $first_date_readable." "Fichier de log : $success"
+        else
+            {
+                echo "Fichier log : ${log_files[0]}"
+                echo "==> LA MISE À JOUR HORS-LIGNE SEMBLE AVOIR ÉCHOUÉ  <=="
+                echo "$last_three_entries"
+                echo
+                echo "--------------------------------"
+                cat "$tmp_combined_log"
+                echo "--------------------------------"
+                echo "Erreurs éventuelles :"
+                grep -i "error" "$tmp_combined_log" || echo "Aucune erreur trouvée"
+                echo
+            } >> "$failure"
+            notify-send -i "$icon" -u critical --app-name "Mise à jour hors-ligne" \
+                        "En échec le $last_date_readable." "Fichier de log : $failure"
+        fi
+        return 0
+    else
+        echo "DEBUG: Erreur de récupération du PID de la dernière commande dnf5 offline _execute" | tee "$bigerror"
+        return 1
+    fi
 }
 ################################################################################################################################
 WAITFORDBUS() {
@@ -222,13 +266,13 @@ WAITFORDBUS() {
 	         /org/freedesktop/Notifications org.freedesktop.Notifications.GetCapabilities >/dev/null 2>&1; do
 	    attempt=$((attempt + 1))
 	    if [ $attempt -ge $max_attempts ]; then
-			echo "Avertissement : D-Bus n'est toujours pas prêt après $attempt tentatives. Continuation du script quand même." >> "$bigerror"
+			echo "DEBUG : Avertissement : D-Bus n'est toujours pas prêt après $attempt tentatives. Continuation du script quand même." >> "$bigerror"
 			break
 		fi
 		sleep 10
 	done
-	sleep 5
-	echo "Attente état dbus : $attempt essai(s)"
+	echo "DEBUG: Attente état dbus : $attempt essai(s)"
+	return 0
 }
 
 
@@ -250,3 +294,4 @@ if [ -f "$indicator_file" ]; then
 	fi
 	rm -f "$indicator_file"
 fi
+exit 0
