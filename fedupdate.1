@@ -1,4 +1,4 @@
-.TH \fBfedupdate\fR 1 "23 Décembre 2024" "v1.9" "Documentation utilisateur"
+.TH \fBfedupdate\fR 1 "6 Janvier 2025" "v2.0" "Documentation utilisateur"
 .SH NAME
 \fBfedupdate\fR \- Cette commande met à jour un système FEDORA Linux.
 .SH SYNOPSIS
@@ -98,10 +98,6 @@ Le fichier de configuration conserve le mail nécessaire à l'option \fB-m\fR et
 
 Ce mot de passe, utilisé par la commande \fBsudo\fR, peut-être stocké en clair, ou chiffré si la bibliothèque \fBopenssl\fR est installée.
 
-Le mode "notification par email" (\fB-m\fR) et le mode "notification système" (\fB-n\fR) ne sont appliqués qu'en mode "vérification" (\fB-c\fR). Ils sont ignorés sinon.
-
-Le mode "notification par email" (\fB-m\fR) n'est appliqué que si la commande est lancée en arrière plan (via une tâche cron ou une unité systemd).
-
 Le mode "notification par email" (\fB-m\fR) nécessite la commande mail et un MTA configuré (Mail Transport Agent, comme \fBmsmtp\fR ou \fBopen\fR).
 
 Une rotation des logs est effectuée à chaque exécution du programme.
@@ -124,4 +120,4 @@ Dossier des données de la commande \fBfedupdate\fR.
 OLIVIER LORILLU
 
 .SH COPYRIGHT
-Copyright (C) OLIVIER LORILLU 2024. Ce script est distribué sous licence GPL v3.
+Copyright (C) OLIVIER LORILLU 2024/25. Ce script est distribué sous licence GPL v3.

@@ -1,5 +1,14 @@
 # *CHANGELOG*
 
+## version 2.20
+
+- option -m maintenant appliquée au script post-upgrade-message.sh pour envoyer par email le résultat de la mise à jour hors-ligne.
+
+- ajout affichage des messages de traitement des options (mode verbose).
+
+- option -m maintenant applicable même si mode -c n'est pas activée. Un mail est envoyé quand une maj est dispo.
+
+
 ## version 2.15
 -	ajout du mode -D, --deletelog pour supprimer tous les logs de fedupdate.
 

@@ -15,7 +15,7 @@ dnfver=""
 CHECK_DNF_VERSION() {
     local version_info=""
     version_info=$($dnf --version 2>/dev/null || echo "unknown")
-    if echo "$version_info" | grep -q "4\."; then
+    if echo "$version_info" | grep -q "^4\."; then
         echo "dnf4"
         return 0
     elif echo "$version_info" | grep -q "5\."; then
@@ -25,6 +25,20 @@ CHECK_DNF_VERSION() {
         echo "Unable to determine DNF version." >> "$bigerror"
         return 1
     fi
+}
+################################################################################################################################
+SEND-EMAIL() {
+	local liste="$2"
+	local subject="$1"
+	export USERLOCAL="root"
+	if EXISTS mail; then
+		echo "DEBUG: Envoi d'un email à $email..."
+		mail -s "[$host] $subject" "$email" < "$liste" || true
+		return 0
+	else
+		echo "DEBUG: impossible d'envoyer un email, command \"mail\" manquante..." | tee -a "$bigerror"
+		return 1
+	fi
 }
 ################################################################################################################################
 FORMAT-DATE() {
@@ -96,12 +110,21 @@ POSTUPGRADEDNF4() {
 	        grep "${update_time}" "$log_file" | awk 'NR==1 {print $1, $3, $4, $5, $6, $7, $8, $9} NR>1 {$1=$2=""; print $0}' > "$success"
 	        CHECK-NEW-CONF-FILE || true
 	        notify-send -i "$icon" --app-name "Mise à jour hors-ligne" "Effectuée correctement le $readable_time." "Fichier de log : $success"
+         	if [ "$notif_email" = "yes" ]; then
+            	SEND-EMAIL "Mise à jour avec succès" "$success"
+            fi
 	    elif [[ $last_result == *"err"* ]]; then
 	        grep "${update_time}" "$log_file" > "$failure"
 	        notify-send -i "$icon" -u critical --app-name "Mise à jour hors-ligne" "En échec le $readable_time." "Fichier de log : $failure"
+        	if [ "$notif_email" = "yes" ]; then
+            	SEND-EMAIL "Mise à jour en échec" "$failure"
+            fi
 	    else
 	        grep "${update_time}" "$log_file" > "$failure"
 	        notify-send -i "$icon" -u critical --app-name "Mise à jour hors-ligne" "Résultat inconnu." "Fichier de log : $failure"
+        	if [ "$notif_email" = "yes" ]; then
+            	SEND-EMAIL "Mise à jour en probable échec - A vérifier" "$failure"
+            fi
 	    fi
 		return 0
 	else
@@ -132,12 +155,12 @@ POSTUPGRADEDNF5() {
     temp_combined="$HOME/.cache/temp-combinedlog.log"
     local -i start_epoch=0
 
-    # Prepare the combined log file
+    # init files
     true > "$tmp_filtered_log"
     true > "$reverse_tmp_filtered_log"
     true > "$temp_combined"
     rm -f "$failure" "$success"
-
+    # copy log files into a single one in a safe place ($HOME/.cache)
     for log_file in "${log_files[@]}"; do
         if [[ -f "$log_file" ]]; then
         	echo "DEBUG: concatenate - $log_file"
@@ -151,7 +174,7 @@ POSTUPGRADEDNF5() {
         awk '/dnf5 offline _execute|dnf offline _execute/ {print; exit}' || true)
 
     if [[ -z "$dnf5launch" ]]; then
-        echo "Aucune commande \"dnf5 offline _execute\" n'a été trouvée dans les logs" | tee -a "$bigerror"
+        echo "DEBUG: Aucune commande \"dnf5 offline _execute\" n'a été trouvée dans les logs" | tee -a "$bigerror"
         return 1
     fi
 
@@ -194,10 +217,18 @@ POSTUPGRADEDNF5() {
 		        }
 			' '$temp_combined' > '$reverse_tmp_filtered_log'
 		"
-		sleep 1
 	    # Reverse the filtered output to restore chronological order
-	    tac "$reverse_tmp_filtered_log" > "$tmp_filtered_log"
-	    #rm -f "$reverse_tmp_filtered_log" "$temp_combined"
+		awk '
+			{
+				 lines[NR] = $0  # Store each line in an array
+			}
+			END {
+				for (i = NR; i > 0; i--) {  # Print lines in reverse order
+					print lines[i]
+				}
+			}
+			' "$reverse_tmp_filtered_log" > "$tmp_filtered_log"
+	    rm -f "$reverse_tmp_filtered_log" "$temp_combined"
 
         if ! grep -Eq "INFO DNF5 (finished|a terminé)" "$tmp_filtered_log"; then
             echo "DEBUG: Fin de mise à jour 'INFO DNF5 finished' ou 'INFO DNF5 a terminé' introuvable pour le PID $pid_dnf." | tee -a "$bigerror"
@@ -222,6 +253,7 @@ POSTUPGRADEDNF5() {
         if grep -q "Transaction complete!" "$tmp_filtered_log" && \
            grep -Eq "INFO DNF5 (finished|a terminé)" "$tmp_filtered_log"; then
             echo "DEBUG: LA MISE À JOUR HORS-LIGNE A ÉTÉ ÉXÉCUTÉE CORRECTEMENT"
+            echo "DEBUG: see $success"
             {
                 echo "Début de mise à jour hors-ligne : $first_date_readable"
                 echo "Fin de mise à jour hors-ligne : $last_date_readable"
@@ -237,11 +269,15 @@ POSTUPGRADEDNF5() {
                 grep -i "error" "$tmp_filtered_log" || echo "Aucune erreur trouvée"
                 echo
             } >> "$success"
-            CHECK-NEW-CONF-FILE || true
+            CHECK-NEW-CONF-FILE || true # recherche fichier rpmnew/rpmsave
             notify-send -i "$icon" --app-name "Mise à jour hors-ligne" \
                         "Effectuée correctement le $first_date_readable." "Fichier de log : $success"
+            if [ "$notif_email" = "yes" ]; then
+            	SEND-EMAIL "Mise à jour avec succès" "$success"
+            fi
         else
         	echo "DEBUG: LA MISE À JOUR HORS-LIGNE SEMBLE AVOIR ÉCHOUÉ"
+         	echo "DEBUG: see $failure"
             {
                 echo "Début de mise à jour hors-ligne : $first_date_readable"
                 echo "Fin de mise à jour hors-ligne : $last_date_readable"
@@ -257,6 +293,9 @@ POSTUPGRADEDNF5() {
             } >> "$failure"
             notify-send -i "$icon" -u critical --app-name "Mise à jour hors-ligne" \
                         "En échec le $last_date_readable." "Fichier de log : $failure"
+            if [ "$notif_email" = "yes" ]; then
+               	SEND-EMAIL "Mise à jour en probable échec - A vérifier" "$failure"
+            fi
         fi
         return 0
     else
@@ -266,38 +305,64 @@ POSTUPGRADEDNF5() {
 }
 ################################################################################################################################
 WAITFORDBUS() {
-	local -i attempt=0
-	local -i max_attempts=9
-	while ! dbus-send --session --dest=org.freedesktop.Notifications --type=method_call \
-	         /org/freedesktop/Notifications org.freedesktop.Notifications.GetCapabilities >/dev/null 2>&1; do
-	    attempt=$((attempt + 1))
-	    if [ $attempt -ge $max_attempts ]; then
-			echo "DEBUG : Avertissement : D-Bus n'est toujours pas prêt après $attempt tentatives. Continuation du script quand même." >> "$bigerror"
-			break
-		fi
-		sleep 10
-	done
-	echo "DEBUG: Attente état dbus : $attempt essai(s)"
-	return 0
+    local -i attempt=0
+    local -i max_attempts=9
+    local -i sleep_time=10
+    while ! dbus-send --session --dest=org.freedesktop.Notifications --type=method_call \
+             /org/freedesktop/Notifications org.freedesktop.Notifications.GetCapabilities >/dev/null 2>&1; do
+        attempt=$((attempt + 1))
+        if [ "$attempt" -ge "$max_attempts" ]; then
+            echo "DEBUG : Avertissement : D-Bus n'est toujours pas prêt après $attempt tentatives. Continuation du script quand même." | tee -a "$bigerror"
+            return 1
+        fi
+        sleep "$sleep_time"
+    done
+    if [ "$attempt" -eq 0 ]; then
+        echo "DEBUG: dbus est prêt."
+    elif [ "$attempt" -lt "$max_attempts" ]; then
+        echo "DEBUG: dbus est prêt après $attempt boucle(s) d'attente de ${sleep_time}s."
+    fi
+    return 0
 }
+################################################################################################################################
+HOSTNAME() {
+    host=$(/usr/bin/hostnamectl --transient 2>/dev/null) || true
+    [ -n "$host" ] || host=$(/usr/bin/hostname 2>/dev/null) || true
+    [ -n "$host" ] || host=$(/usr/bin/uname -n 2>/dev/null) || true
+    [ -n "$host" ] || host="unknown"
+    return 0
+}
+################################################################################################################################
+EXISTS() {
+	unalias "$1" >/dev/null 2>&1 || true
+	command -v "$1" >/dev/null 2>&1
+}
+################################################################################################################################
 
 
 ################################################################################################################################
 #                   CORPS DU SCRIPT                                                                                            #
 ################################################################################################################################
-if [ -f "$indicator_file" ]; then
+if [ -f "$indicator_file" ]; then 						# le script est lancé que si le fichier indicator est présent.
+	notif_email=""
+	email=""
+	HOSTNAME || true
+    if grep -q "yes" "$HOME/.offline-upgrade"; then		# la notif_email est activée.
+    	# shellcheck source=/dev/null
+     	source "$HOME/.config/fedupdate/config.rc"			# sourcing fichier de conf pour récupérer email address.
+      	notif_email="yes"
+    fi
 	rm -f "$bigerror"
-	# on récupère la version de dnf utilisée lors de la mise à jour hors-ligne
-	dnf="$(cat "$indicator_file")"
-	dnfver="$(CHECK_DNF_VERSION || echo "unknown")"
-	WAITFORDBUS || true
-	if [[ "$dnfver" == "dnf4" ]]; then # dnf version 4
+	dnf="$(head -1 "$indicator_file")" 						# on récupère le chemin complet de dnf utilisée lors de la mise à jour hors-ligne (/usr/bin/dnf ou /usr/bin/dnf4 ou /usr/bin/dnf5).
+	dnfver="$(CHECK_DNF_VERSION || echo "unknown")"  	# on en déduit la version de dnf utilisée lors de la mise à jour hors-ligne.
+	WAITFORDBUS || true 								# On attend que dBUS soit dispo pour pouvoir lancer une notif système.
+	if [[ "$dnfver" == "dnf4" ]]; then 					# dnf version 4.
 		POSTUPGRADEDNF4 || true
-	elif [[ "$dnfver" == "dnf5" ]]; then  # dnf version 5
+	elif [[ "$dnfver" == "dnf5" ]]; then  				# dnf version 5.
 		POSTUPGRADEDNF5 || true
 	else
-		echo "Unsupported DNF version: $dnfver" >> "$bigerror"
+		echo "DEBUG: Unsupported DNF version: $dnfver" | tee -a "$bigerror"
 	fi
-	rm -f "$indicator_file"
+	rm -f "$indicator_file" 							# on efface le fichier indicator pour que le script ne se lance pas au prochain démarrage.
 fi
 exit 0

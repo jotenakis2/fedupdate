@@ -19,7 +19,7 @@ Cela va installer *fedupdate* et *post-upgrade-message.sh* dans **/usr/local/bin
 
 Le script d'installation va aussi installer trois unités systemd utilisateur :
 
-**checkupdate.service** : permet de lancer fedupdate en mode vérification uniquement avec notification système (*fedupdate* -c -n).
+**checkupdate.service** : permet de lancer fedupdate en mode vérification uniquement avec notification système (*fedupdate* -c -n -0).
 
 **checkupdate.timer** : permet de vérifier la présence de mise à jour toutes les 3 heures.
 
@@ -151,8 +151,6 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 -   Ce mot de passe, utilisé par la commande sudo, peut-être stocké en clair, ou chiffré si la bibliothèque openssl est installée.
 
 -   Il conserve également des options à activer par défaut.
-
--   Le mode "notification par email" (-m) et le mode "notification système" (-n) ne sont appliqués qu'en mode "vérification" (-c). Ils sont ignorés sinon.
 
 -   Le mode "notification par email" (-m) nécessite la commande mail et un MTA configuré (Mail Transport Agent, comme msmtp ou opensmtpd).
 

@@ -1,5 +1,5 @@
 #!/bin/bash
-ver=2.15
+ver=2.20
 # Convention : les variables en minuscules, les fonctions en majuscules.
 # Par défaut le script unalias toutes les commandes utilisées pour éviter des comportements qu'il ne peut prévoir
 # le script détecte s'il est lancé en arrière plan (dans ce cas, la variable terminal vaut dumb)
@@ -13,7 +13,6 @@ cmdline="$*" 				# arguments de la ligne de commande
 scriptfullname="$0" 		# chemin complet du script
 scriptname="${0##*/}" 		# équivalent à basename $0, mais en pur bash.
 
-# improve post-upgrade-message to be quicker.
 
 ################################################# flatpak COMMANDS ##############################################################
 FPK_CHECKUPDCMD() {
@@ -802,7 +801,6 @@ ${bleu}${underline}NOTES${reinit}
 	- Le fichier de configuration ${gras}${bleu}$(basename "$config")${reinit} conserve l'e-mail nécessaire à l'option ${vert}-m${reinit} ainsi que le mot de passe de ${gras}${bleu}$(whoami)${reinit}.
 	- Il conserve aussi les options par défaut de ${gras}${bleu}$scriptname${reinit}.
 	- Ce mot de passe, utilisé par la commande ${gras}${bleu}sudo${reinit}, peut-être stocké en clair, ou chiffré si la bibliothèque ${gras}${bleu}openssl${reinit} est installée.
-	- Le $modeM (${vert}-m${reinit}) et le $modeN (${vert}-n${reinit}) ne sont appliqués qu'en $modeC (${vert}-c${reinit}). Ils sont ignorés sinon.
 	- Le $modeM (${vert}-m${reinit}) nécessite la commande ${gras}${bleu}mail${reinit} et un MTA configuré (Mail Transport Agent, comme ${gras}${bleu}msmtp${reinit} ou ${gras}${bleu}opensmtpd${reinit}).
 	- Une rotation des logs est effectuée dans ${gras}${bleu}$datadir${reinit} à chaque exécution de ${gras}${bleu}$scriptname${reinit}.
 	- ${gras}9 logs${reinit} de chaque type sont conservés au maximum. Les logs vides sont automatiquement supprimés.
@@ -873,7 +871,8 @@ OFFLINE-UPGRADE() {
 		fi
 		if DNF_CHECK_OFFLINE_UPGRADE_READY; then
 			THE-END "succès" || true
-			echo "$dnf" > "$offlineindicator" || true  # Ce fichier sera détecté par un service systemd après reboot pour afficher un message
+			echo "$dnf" > "$offlineindicator" || true  # Ce fichier sera sourcé par un service systemd après reboot pour afficher un message
+			echo "$notif_email" >> "$offlineindicator" || true
 			sleep 2 || true
 			#echo "DEBUG : check logs rotate" && read -r
 			DNF_OFF-REBOOTCMD
@@ -935,14 +934,14 @@ ONLINE-UPGRADE() {
 }
 ################################################################################################################################
 SEND-EMAIL() {
-	local type="$1" # RPM ou FP
-	local liste="$2"
+	local subject="$1"
+	local body="$2"
 	export USERLOCAL="root"
 
 	CECHO "[INFO]" "$vert" -n && echo -n " Envoi d'un email à $email "
-	echo " => veuillez éxécuter la commande ${scriptfullname} sur $host pour procéder à la mise à jour." >> "$liste" || true
+	echo " => veuillez éxécuter la commande ${scriptfullname} sur $host pour procéder à la mise à jour." >> "$body" || true
 	{ trap STOP-SPINNER EXIT && START-SPINNER; }
-		LANG="$LANG0" mail -s "[$host] Des mises à jour $type sont disponibles" "$email" < "$liste" || true
+		LANG="$LANG0" mail -s "$subject" "$email" < "$body" || true
 	{ STOP-SPINNER && echo "terminé."; }
 	return 0
 }
@@ -1109,7 +1108,20 @@ GESTION-RPM() {
 				distrupgrade=""
 			fi
 			[ "$notif" = "yes" ] && { GESTION-NOTIF "RPM" "$list" || true ;}
-			[ "$notif_email" = "yes" ] && { SEND-EMAIL "RPM" "$list" || true ;}
+			if [ "$notif_email" = "yes" ] && [ "$emailfpk" = "yes" ]; then
+		 		local listemail=""
+				listemail="$HOME/.cache/listemail.tmp"
+				echo >> "$listFP"
+				cat "$list" "$listFP" > "$listemail"
+				SEND-EMAIL "[$host] Mise à jour" "$listemail" || true
+				sleep 1
+				rm -f "$listemail"
+				unset listemail
+			elif [ "$notif_email" = "yes" ]; then
+				SEND-EMAIL "[$host] Mise à jour RPM" "$list" || true
+	  		elif [ "$emailfpk" = "yes" ]; then
+				SEND-EMAIL "[$host] Mise à jour FLATPAK" "$listFP" || true
+			fi
 		fi
 	else
 		CECHO "[INFO]" "$vert" -n && echo -e " ${gras}Votre système ($host) est déjà à jour.${reinit}"
@@ -1119,6 +1131,7 @@ GESTION-RPM() {
 ################################################################################################################################
 GESTION-Flatpak() {
 	listtmpFP="$HOME/.cache/listFP.tmp"
+	emailfpk=""
 	if EXISTS flatpak; then
 		flatpak="$(which flatpak 2>/dev/null)"
 		INIT-LOGFP || true
@@ -1127,8 +1140,6 @@ GESTION-Flatpak() {
 		# Check for available updates
 		CECHO "[INFO]" "$vert" -n && echo -n " Vérification des paquets disponibles "
 		FPK_CHECKUPDCMD
-		#cat "$listtmpFP" | awk '{printf "%-45s %-7s\n", $2, $3}' | sed 's/^/  /' > "$listFP" || true
-		#awk '{printf "%-45s %-7s\n", $2, $3}' "$listtmpFP" | sed 's/^/  /' > "$listFP" || true
 		awk '{printf "  %-45s %-7s\n", $2, $3}' "$listtmpFP" > "$listFP" || true
 		rm -f "$listtmpFP"
 		unset listtmpFP
@@ -1161,7 +1172,7 @@ GESTION-Flatpak() {
 				else  # Mode checkonly
 					CECHO "[INFO]" "$vert" -n && echo " Des mises à jour sont disponibles."
 					[ "$notif" = "yes" ] && { GESTION-NOTIF "FLATPAK" "$listFP" || true ;}
-					[ "$notif_email" = "yes" ] && { SEND-EMAIL "FLATPAK" "$listFP" || true ;}
+					[ "$notif_email" = "yes" ] && emailfpk="yes" # l'envoie email se fera après dans la function GESTION-RPM
 				fi
 			else
 				CECHO "[INFO]" "$vert" -n && echo -e " ${gras}Votre système ($host) est déjà à jour.${reinit}"
@@ -1182,131 +1193,131 @@ GESTION-OPTIONS() { # management des options du script sélectionnées via la li
 		echo -e " Date d'installation de ${ID^} (${gras}$host${reinit}) :${italic}$datecreated${reinit} (il y a ${days_since_install} $day)" || true
 	fi
 	CECHO "[INFO]" "$vert" -n && echo -e " Ligne de commande : ${gras}${bleu}${scriptfullname}${reinit} ${gras}${vert}${cmdline}${reinit}" | tee -a "$biglog"
-
+	echo >> "$biglog"
 # Affichage des modes selectionnés
-	[ "$checkdeps" = "yes" ] && echo -e " $modeCC (${vert}-C${reinit})." >> "$biglog"
-	[ "$silent" = "yes" ] && echo -e " $modeS (${vert}-s${reinit})." >> "$biglog"
-	[ "$verbose" = "yes" ] && echo -e " $modeV (${vert}-v${reinit})." >> "$biglog"
-	[ "$nomail" = "yes" ] && echo -e " $modeMM (${vert}-M${reinit})." >> "$biglog"
-	[ "$noflatpak" = "yes" ] && echo -e " $modeF (${vert}-F${reinit})." >> "$biglog"
-	[ "$norpm" = "yes" ] && echo -e " $modeR (${vert}-R${reinit})." >> "$biglog"
-	[ "$nolog" = "yes" ] && echo -e " $mode0 (${vert}-0${reinit})." >> "$biglog"
-	[ "$limitlog" = "yes" ] && echo -e " $modeLP (${vert}-l${reinit})." >> "$biglog"
-	[ "$directrpms" = "yes" ] && echo -e " $modeD (${vert}-d${reinit})." >> "$biglog"
-	[ "$nocacheupd" = "yes" ] && echo -e " $modeB (${vert}-B${reinit})." >> "$biglog"
-	[ "$forcecacheupd" = "yes" ] && echo -e " $modeBB (${vert}-b${reinit})." >> "$biglog"
-	[ "$poweroff" = "yes" ] && echo -e " $modeP (${vert}-p${reinit})." >> "$biglog"
-	[ "$changelog" = "yes" ] && echo -e " $modeCL (${vert}-L${reinit})." >> "$biglog"
-	[ "$distrupgrade" = "yes" ] && echo -e " $modeU (${vert}-u${reinit})." >> "$biglog"
-	[ "$checkonly" = "yes" ] && echo -e " $modeC (${vert}-c${reinit})." >> "$biglog"
-	[ "$deletelog" = "yes" ] && echo -e " ${jaune}mode \"suppression des logs\"${reinit} (${vert}-D${reinit})." >> "$biglog"
-	[ "$forcednf4" = "yes" ] && { echo -e " $mode4 (${vert}-4${reinit})." >> "$biglog" ; dnf="/usr/bin/dnf4" ;}
-	[ "$forcednf5" = "yes" ] && { echo -e " $mode5 (${vert}-5${reinit})." >> "$biglog" ; dnf="/usr/bin/dnf5" ;}
+	[ "$checkdeps" = "yes" ] && echo "- $modeCC (-C)." >> "$biglog"
+	[ "$silent" = "yes" ] && echo "- $modeS (-s)." >> "$biglog"
+	[ "$verbose" = "yes" ] && echo "- $modeV (-v)." >> "$biglog"
+	[ "$nomail" = "yes" ] && echo "- $modeMM (-M)." >> "$biglog"
+	[ "$noflatpak" = "yes" ] && echo "- $modeF (-F)." >> "$biglog"
+	[ "$norpm" = "yes" ] && echo "- $modeR (-R)." >> "$biglog"
+	[ "$nolog" = "yes" ] && echo "- $mode0 (-0)." >> "$biglog"
+	[ "$limitlog" = "yes" ] && echo "- $modeLP (-l)." >> "$biglog"
+	[ "$directrpms" = "yes" ] && echo "- $modeD (-d)." >> "$biglog"
+	[ "$nocacheupd" = "yes" ] && echo "- $modeB (-B)." >> "$biglog"
+	[ "$forcecacheupd" = "yes" ] && echo "- $modeBB (-b)." >> "$biglog"
+	[ "$poweroff" = "yes" ] && echo "- $modeP (-p)." >> "$biglog"
+	[ "$changelog" = "yes" ] && echo "- $modeCL (-L)." >> "$biglog"
+	[ "$distrupgrade" = "yes" ] && echo "- $modeU (-u)." >> "$biglog"
+	[ "$checkonly" = "yes" ] && echo "- $modeC (-c)." >> "$biglog"
+	[ "$deletelog" = "yes" ] && echo "- mode \"suppression des logs\" (-D)." >> "$biglog"
+	[ "$forcednf4" = "yes" ] && { echo "- $mode4 (-4)." >> "$biglog" ; dnf="/usr/bin/dnf4" ;}
+	[ "$forcednf5" = "yes" ] && { echo "- $mode5 (-5)." >> "$biglog" ; dnf="/usr/bin/dnf5" ;}
+	[ "$notif_email" = "yes" ] && echo "- $modeM (-m)." >> "$biglog"
+	[ "$notif" = "yes" ] && echo "- $modeN (-n)." >> "$biglog"
+	echo >> "$biglog"
 #----------------------------------
 
 # Gestion des incompatibilités de modes
 	if [ "$silent" = "yes" ] && [ "$verbose" = "yes" ]; then
-		echo -e " Le $modeS (${vert}-s${reinit}) est incompatible avec le $modeV (${vert}-v${reinit})." >> "$biglog"
-		echo -e " On force donc le $modeV (${vert}-v${reinit})." >> "$biglog"
+		echo "- Le $modeS (-s) est incompatible avec le $modeV (-v)." >> "$biglog"
+		echo "-> On force donc le $modeV (-v)." >> "$biglog"
 		silent=""
 	fi
 	if [ "$silent" = "yes" ] && [ "$distrupgrade" = "yes" ]; then
-		echo -e " En $modeU (${vert}-u${reinit}), on désactive le $modeS (${vert}-s${reinit})." >> "$biglog"
+		echo "- En $modeU (-u), on désactive le $modeS (-s)." >> "$biglog"
 		silent=""
 	fi
 	if [ "$forcednf4" = "yes" ] && [ "$forcednf5" = "yes" ]; then
-		echo -e " Les modes ${gras}${bleu}dnf4${reinit} et ${gras}${bleu}dnf5${reinit} ne peuvent être utilisés en même temps." >> "$biglog"
-		echo -e " On utilise ${gras}${bleu}/usr/bin/dnf${reinit}." >> "$biglog"
+		echo "- Les modes forcés dnf4 et dnf5 ne peuvent être utilisés en même temps." >> "$biglog"
+		echo "-> On utilise /usr/bin/dnf." >> "$biglog"
 		dnf="/usr/bin/dnf"
 		forcednf4=""
 		forcednf5=""
 	fi
 	if { [ "$forcednf4" = "yes" ] || [ "$forcednf5" = "yes" ]; } && [ "$distrupgrade" = "yes" ]; then
-		echo -e " Les modes forcés ${gras}${bleu}dnf4${reinit} et ${gras}${bleu}dnf5${reinit} ne sont pas compatibles avec le $modeU (${vert}-u${reinit})." >> "$biglog"
-		echo -e " On utilise ${gras}${bleu}/usr/bin/dnf${reinit}." >> "$biglog"
+		echo "- Les modes forcés dnf4 et dnf5 ne sont pas compatibles avec le $modeU (-u)." >> "$biglog"
+		echo "-> On utilise /usr/bin/dnf." >> "$biglog"
 		dnf="/usr/bin/dnf"
 		forcednf4=""
 		forcednf5=""
 	fi
 	if [ "$distrupgrade" = "yes" ] && [ "$nocacheupd" = "yes" ]; then
-		echo -e " Le $modeU (${vert}-u${reinit}) est incompatible avec le $modeB (${vert}-B${reinit})." >> "$biglog"
-		echo -e " On ignore donc le $modeB (${vert}-B${reinit})." >> "$biglog"
+		echo "- Le $modeU (-u) est incompatible avec le $modeB (-B)." >> "$biglog"
+		echo "-> On ignore donc le $modeB (-B)." >> "$biglog"
 		nocacheupd=""
 	fi
 	if [ "$distrupgrade" = "yes" ] && [ "$norpm" = "yes" ]; then
-		echo -e " Le $modeU (${vert}-u${reinit}) est incompatible avec le $modeR (${vert}-R${reinit})." >> "$biglog"
-		echo -e " On ignore donc le $modeR (${vert}-R${reinit})." >> "$biglog"
+		echo "- Le $modeU (-u) est incompatible avec le $modeR (-R)." >> "$biglog"
+		echo "-> On ignore donc le $modeR (-R)." >> "$biglog"
 		norpm=""
 	fi
 	if [ "$nocacheupd" = "yes" ] && [ "$forcecacheupd" = "yes" ]; then
-		echo -e " Le $modeB (${vert}-B${reinit}) est incompatible avec le $modeBB (${vert}-b${reinit})." >> "$biglog"
-		echo -e " On force donc le $modeBB (${vert}-b${reinit})." >> "$biglog"
+		echo "- Le $modeB (-B) est incompatible avec le $modeBB (-b)." >> "$biglog"
+		echo "-> On force donc le $modeBB (-b)." >> "$biglog"
 		nocacheupd=""
-	fi
-#----------------------------------
-
-# Contrôles du mode email (verif adresse email existe et commande mail est installée)
-	if [ "$notif_email" = "yes" ]; then
-		if [ -z "$email" ]; then
-			DATE-ET-HEURE >> "$bigerror" || true
-			CECHO "[WARN]" "$jaune" -n && { echo " Aucune adresse email trouvée." | tee -a "$bigerror" || true ;}
-			CECHO "[INFO]" "$vert" -n && { echo " Veuillez exécuter la commande suivante pour créer le fichier de configuration :" | tee -a "$bigerror" || true ;}
-			echo -e "	${gras}${bleu}$scriptfullname -C${reinit}" | tee -a "$bigerror" || true
-			THE-END "des erreurs" | tee -a "$bigerror" || true
-			exit 1
-		else
-			echo -e " e-mail : ${bleu}$email${reinit}." >> "$biglog"
-		fi
-		if ! EXISTS mail; then
-			DATE-ET-HEURE >> "$bigerror" || true
-			CECHO "[ERR.]" "$rouge" -n && { echo -e " La commande ${gras}${bleu}mail${reinit} n'est pas disponible sur votre système." | tee -a "$bigerror" || true ;}
-			CECHO "[INFO]" "$vert" -n && { echo -e " Vous pouvez l'installer avec la commande : ${gras}${bleu}sudo dnf install s-nail${reinit}." | tee -a "$bigerror" || true ;}
-			CECHO "[WARN]" "$jaune" -n && { echo -e " Vous devez aussi installer et configurer un \"Mail Transport Agent\", par exemple ${gras}${bleu}msmtp${reinit} avec la commande ${gras}${bleu}sudo dnf install msmtp${reinit}." | tee -a "$bigerror" || true ;}
-		fi
 	fi
 #----------------------------------
 
 # Contrôle du mode vérification (incompatibilités avec et sans le mode -c)
 	if [ "$checkonly" = "yes" ]; then
 		if [ "$distrupgrade" = "yes" ]; then
-			echo -e " Le $modeU (${vert}-u${reinit}) est incompatible avec le $modeC (${vert}-c${reinit})." >> "$biglog"
-			echo -e " On ignore donc le $modeU (${vert}-u${reinit})." >> "$biglog"
+			echo "- Le $modeU (-u) est incompatible avec le $modeC (-c)." >> "$biglog"
+			echo "-> On ignore donc le $modeU (-u)." >> "$biglog"
 			distrupgrade=""
 		fi
-		if [ "$notif_email" = "yes" ]; then
-			echo -e " $modeM (${vert}-m${reinit})." >> "$biglog"
-			if [ "$nomail" = "yes" ]; then
-				echo -e " Le $modeM (${vert}-m${reinit}) est incompatible avec le $modeMM (${vert}-M${reinit})." >> "$biglog"
-				echo -e " On ignore donc le $modeM (${vert}-m${reinit})." >> "$biglog"
-				notif_email=""
-			fi
-		fi
-		if [ "$notif" = "yes" ]; then
-			echo -e " $modeN (${vert}-n${reinit})." >> "$biglog"
-		fi
 	else
-		if [ "$notif_email" = "yes" ]; then
-			echo -e " $modeM (${vert}-m${reinit}) ignoré car le $modeC (${vert}-c${reinit}) n'est pas activé." >> "$biglog"
-			notif_email=""
-		fi
 		if [ "$notif" = "yes" ]; then
-			echo -e " $modeN (${vert}-n${reinit}) ignoré car le $modeC (${vert}-c${reinit}) n'est pas activé." >> "$biglog"
+			echo "- $modeN (-n) ignoré car le $modeC (-c) n'est pas activé." >> "$biglog"
 			notif=""
 		fi
 	fi
 #----------------------------------
 
+# Contrôles du mode email (verif adresse email existe et commande mail est installée)
+	if [ "$notif_email" = "yes" ]; then
+		if [ "$nomail" = "yes" ]; then
+			echo "- Le $modeM (-m) est incompatible avec le $modeMM (-M)." >> "$biglog"
+			echo "-> On ignore donc le $modeM (-m)." >> "$biglog"
+			notif_email=""
+		fi
+		if [ -z "$email" ]; then
+			DATE-ET-HEURE >> "$bigerror" || true
+			CECHO "[WARN]" "$jaune" -n && { echo " Aucune adresse email trouvée." | tee -a "$bigerror" || true ;}
+			echo "- Aucune adresse email trouvée." >> "$biglog"
+			CECHO "[INFO]" "$vert" -n && { echo " Veuillez exécuter la commande suivante pour créer le fichier de configuration :" | tee -a "$bigerror" || true ;}
+			echo -e "	${gras}${bleu}$scriptfullname -C${reinit}" | tee -a "$bigerror" || true
+			THE-END "des erreurs" | tee -a "$bigerror" || true
+			exit 1
+		else
+			echo "- e-mail : $email." >> "$biglog"
+		fi
+		if ! EXISTS mail; then
+			DATE-ET-HEURE >> "$bigerror" || true
+			CECHO "[ERR.]" "$rouge" -n && { echo -e " La commande ${gras}${bleu}mail${reinit} n'est pas disponible sur votre système." | tee -a "$bigerror" || true ;}
+		 	echo "- La commande mail n'est pas disponible sur votre système." >> "$biglog"
+			CECHO "[INFO]" "$vert" -n && { echo -e " Vous pouvez l'installer avec la commande : ${gras}${bleu}sudo dnf install s-nail${reinit}." | tee -a "$bigerror" || true ;}
+			CECHO "[WARN]" "$jaune" -n && { echo -e " Vous devez aussi installer et configurer un \"Mail Transport Agent\", par exemple ${gras}${bleu}msmtp${reinit} avec la commande ${gras}${bleu}sudo dnf install msmtp${reinit}." | tee -a "$bigerror" || true ;}
+		fi
+	fi
+#----------------------------------
+
 # Finalisation
+	echo >> "$biglog"
+	dnfver="$(CHECK_DNF_VERSION || echo "unknown")"
+	[ "$norpm" = "" ] && INIT-LOGRPM
+	echo -ne "$gris"
+	if [ "$silent" = "" ]; then	# en mode verbose j'affiche les données de traitement des options.
+		grep "^-" "$biglog"
+	fi
 	CECHO "[INFO]" "$vert" -n && echo -en " Options retenues (arguments longs) : ${gras}${vert}" | tee -a "$biglog"
 	for opts in silent verbose help checkonly notif_email nomail notif noflatpak norpm nolog checkdeps directrpms nocacheupd \
 				forcecacheupd poweroff changelog forcednf4 forcednf5 distrupgrade limitlog deletelog ; do
 	    if [ "${!opts}" = "yes" ]; then
        	echo -n "--$opts " | tee -a "$biglog"
        fi
-   done
+    done
 	echo -e "${reinit}" | tee -a "$biglog"
-	dnfver="$(CHECK_DNF_VERSION || echo "unknown")"
-	[ "$norpm" = "" ] && INIT-LOGRPM
 #----------------------------------
 
 return 0
@@ -1493,25 +1504,25 @@ START() {
 	error=""
 	deletelog=""
 	pattern_error="'error|erreur|cannot install|warning|There is already an offline transaction queued'"
-	modeS="${jaune}mode \"pseudo-silencieux\"${reinit}"
-	modeV="${jaune}mode \"verbeux\"${reinit}"
-	modeC="${jaune}mode \"vérification\"${reinit}"
-	modeM="${jaune}mode \"notification par email\"${reinit}"
-	modeMM="${jaune}mode \"pas de notification par email\"${reinit}"
-	modeN="${jaune}mode \"notification système\"${reinit}"
-	modeF="${jaune}mode \"sans gestion des FLATPAKs\"${reinit}"
-	modeR="${jaune}mode \"sans gestion des RPMs\"${reinit}"
-	mode0="${jaune}mode \"zéro log\"${reinit}"
-	modeD="${jaune}mode \"mise à jour directe\"${reinit}"
-	modeCC="${jaune}mode \"contrôle de fonctionnement\"${reinit}"
-	modeB="${jaune}mode \"pas de mise à jour du cache\"${reinit}"
-	modeBB="${jaune}mode \"mise à jour forcée du cache\"${reinit}"
-	modeP="${jaune}mode \"extinction\"${reinit}"
-	modeCL="${jaune}mode \"ChangeLog\"${reinit}"
-	mode4="${jaune}mode \"dnf4\"${reinit}"
-	mode5="${jaune}mode \"dnf5\"${reinit}"
-	modeU="${jaune}mode \"mise à niveau\"${reinit}"
-	modeLP="${jaune}mode \"logs partiels\"${reinit}"
+	modeS="mode \"pseudo-silencieux\""
+	modeV="mode \"verbeux\""
+	modeC="mode \"vérification\""
+	modeM="mode \"notification par email\""
+	modeMM="mode \"pas de notification par email\""
+	modeN="mode \"notification système\""
+	modeF="mode \"sans gestion des FLATPAKs\""
+	modeR="mode \"sans gestion des RPMs\""
+	mode0="mode \"zéro log\""
+	modeD="mode \"mise à jour directe\""
+	modeCC="mode \"contrôle de fonctionnement\""
+	modeB="mode \"pas de mise à jour du cache\""
+	modeBB="mode \"mise à jour forcée du cache\""
+	modeP="mode \"extinction\""
+	modeCL="mode \"ChangeLog\""
+	mode4="mode \"dnf4\""
+	mode5="mode \"dnf5\""
+	modeU="mode \"mise à niveau\""
+	modeLP="mode \"logs partiels\""
 	offlineindicator="$HOME/.offline-upgrade"
 
 # Initialisation des logs et du viewer
