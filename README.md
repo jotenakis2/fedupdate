@@ -171,6 +171,23 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 -   Le mode "mise à jour forcée du cache" (-b) permet d'outrepasser le mode "pas de mise à jour du cache" (-B) si ce dernier est activé par défaut dans config.rc.
 
 
+## Options par défaut
+
+-   Les options suivantes peuvent être activées par défaut dans le fichier config.rc :
+
+```
+-4, --forcednf4
+-5, --forcednf5
+-L, --changelog
+-s, --silent
+-F, --noflatpak
+-l, --limitlog
+-p, --poweroff
+-m, --notif_email
+-B, --nocacheupd
+```
+
+
 ## Dépendances
 -	Paquet obligatoire pour installation automatique :
 		make
