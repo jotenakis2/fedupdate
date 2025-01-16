@@ -156,7 +156,7 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 -   Une rotation des logs est effectuée à chaque exécution du script.
 
--   9 logs de chaque type sont conservés au maximum. Les logs vides sont automatiquement supprimés.
+-   50 logs de chaque type sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 
 -   Le mode "verbeux" (-v) permet d'outrepasser le mode "pseudo-silencieux" (-s) si ce dernier est activé par défaut dans le fichier config.rc.
 

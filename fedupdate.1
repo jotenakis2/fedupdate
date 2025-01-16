@@ -1,9 +1,9 @@
-.TH \fBfedupdate\fR 1 "6 Janvier 2025" "v2.0" "Documentation utilisateur"
+.TH \fBfedupdate\fR 1 "16 Janvier 2025" "v2.1" "Documentation utilisateur"
 .SH NAME
 \fBfedupdate\fR \- Cette commande met à jour un système FEDORA Linux.
 .SH SYNOPSIS
 .B fedupdate
-[-h] [-C] [-s] [-v] [-c] [-m] [-M] [-n] [-F] [-R] [-d] [-B] [-0] [-D] [-p] [-L] [-l] [-4] [-5] [-u] (ou arguments longs)
+[-h] [-C] [-s] [-v] [-c] [-m] [-M] [-n] [-F] [-R] [-d] [-B] [-0] [-D] [-p] [-P] [-L] [-l] [-4] [-5] [-u] (ou arguments longs)
 
 .SH DESCRIPTION
 Si des nouveaux paquets \fBFLATPAKs\fR sont disponibles, une mise à jour est lancée.
@@ -61,6 +61,9 @@ Pour supprimer tous les logs de fedupdate.
 .B \-p,--poweroff
 Pour éteindre la machine après la mise à jour.
 .TP
+.B \-P,--nopoweroff
+Pour ne pas éteindre la machine.
+.TP
 .B \-L,--changelog
 Pour lister les modifications apportées par les mises à jour (RPM uniquement).
 .TP
@@ -102,11 +105,16 @@ Le mode "notification par email" (\fB-m\fR) nécessite la commande mail et un MT
 
 Une rotation des logs est effectuée à chaque exécution du programme.
 
-9 logs de chaque type sont conservés au maximum. Les logs vides sont automatiquement supprimés.
+50 logs de chaque type sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 
-Le mode "verbeux" (\fB-v\fR) permet d'outrepasser le mode "pseudo-silencieux" (\fB-s\fR) si ce dernier est activé par défaut dans le fichier config.rc.
+Le mode "verbeux" (\fB-v\fR) permet d'outrepasser le mode "pseudo-silencieux" (\fB-s\fR) si ce dernier est activé par défaut dans config.rc,
 
-Le mode -M permet d'outrepasser le mode -m si ce dernier est activé par défaut dans le fichier config.rc.
+Le mode "pas de notification par email" (\fB-M\fR) permet d'outrepasser le mode "notification par email" (\fB-m\fR) si ce dernier est activé par défaut dans config.rc,
+
+Le mode "pas d'extinction" (\fB-P\fR) permet d'outrepasser le mode "extinction" (\fB-p\fR) si ce dernier est activé par défaut dans config.rc,
+
+Le mode "mise à jour forcée du cache" (\fB-b\fR) permet d'outrepasser le mode "pas de mise à jour du cache" (\fB-B\fR) si ce dernier est activé par défaut dans config.rc.
+
 
 .SH FILES
 .TP
@@ -115,6 +123,21 @@ Fichier de configuration principal pour \fBfedupdate\fR.
 .TP
 .I $HOME/.local/share/fedupdate
 Dossier des données de la commande \fBfedupdate\fR.
+
+
+.SH OPTIONS PAR DÉFAUT
+Les options suivantes peuvent être activées par défaut dans le fichier \fBconfig.rc\fR :
+
+--forcednf4
+--forcednf5
+--changelog
+--silent
+--noflatpak
+--limitlog
+--poweroff
+--notif_email
+--nocacheupd
+
 
 .SH AUTHOR
 OLIVIER LORILLU

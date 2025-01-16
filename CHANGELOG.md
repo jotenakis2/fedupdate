@@ -1,5 +1,20 @@
 # *CHANGELOG*
 
+## version 2.22
+
+- ajout option -P (--nopoweroff) pour outrepasser l'option -p (--poweroff)
+
+- amélioration option -d (mise à jour online), en cas d'erreur il n'a plus de message demandant à l'utilisateur s'il souhaite poursuivre.
+
+- correction bug affichage avant extinction en mode -d (mise à jour online) et passage tempo à 10s avant extinction.
+
+- amélioration cosmétique (affichage des erreurs en gris)
+
+- max log = 50 au lieu de 10 (rappel : option -D pour supprimer les logs)
+
+- mise à jour de la documentation.
+
+
 ## version 2.20
 
 - option -m maintenant appliquée au script post-upgrade-message.sh pour envoyer par email le résultat de la mise à jour hors-ligne.
