@@ -114,6 +114,10 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
           L'ordinateur sera éteint après la mise à jour des RPMs,
 
+-   **-P, --nopoweroff**
+
+          L'ordinateur ne sera pas éteint,
+
 -   **-0, --nolog**
 
           Les fichiers logs ne seront pas conservés.
@@ -158,9 +162,13 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 -   50 logs de chaque type sont conservés au maximum. Les logs vides sont automatiquement supprimés.
 
--   Le mode "verbeux" (-v) permet d'outrepasser le mode "pseudo-silencieux" (-s) si ce dernier est activé par défaut dans le fichier config.rc.
+-   Le mode "verbeux" (-v) permet d'outrepasser le mode "pseudo-silencieux" (-s) si ce dernier est activé par défaut dans config.rc.
 
--   Le mode -M permet d'outrepasser le mode -m si ce dernier est activé par défaut dans le fichier config.rc.
+-   Le mode "pas de notification par email" (-M) permet d'outrepasser le mode "notification par email" (-m) si ce dernier est activé par défaut dans config.rc.
+
+-   Le mode "pas d'extinction" (-P) permet d'outrepasser le mode "extinction" (-p) si ce dernier est activé par défaut dans config.rc.
+
+-   Le mode "mise à jour forcée du cache" (-b) permet d'outrepasser le mode "pas de mise à jour du cache" (-B) si ce dernier est activé par défaut dans config.rc.
 
 
 ## Dépendances
