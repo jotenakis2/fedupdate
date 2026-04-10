@@ -1,5 +1,5 @@
 # *fedupdate*
-Script **bash** de mise à jour de __Fedora Linux__ basé sur dnf et flatpak.
+Script **bash** de mise à jour de __Fedora Linux__ basé sur dnf, flatpak et cargo.
 
 ## comment installer *fedupdate* ?
 Installer fedupdate nécessite que le paquet **make** soit installé.
