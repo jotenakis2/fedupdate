@@ -19,7 +19,7 @@ Cela va installer *fedupdate* et *post-upgrade-message.sh* dans **/usr/local/bin
 
 Le script d'installation va aussi installer trois unités systemd utilisateur :
 
-**checkupdate.service** : permet de lancer fedupdate en mode vérification uniquement avec notification système (*fedupdate* -c -n -0).
+**checkupdate.service** : permet de lancer fedupdate en mode vérification uniquement avec notification système (*fedupdate* -c -n -0 -I).
 
 **checkupdate.timer** : permet de vérifier la présence de mise à jour toutes les 3 heures.
 
@@ -51,7 +51,7 @@ Si des nouveaux paquets **FLATPAKs** sont disponibles, il procède à la mise à
 
 Si des paquets **RPMs** sont disponibles, il les télécharge puis redémarre le système pour une mise à jour hors-ligne (plus sûre).
 
-Le script utilise seulement des commandes dnf et, éventuellement, flatpak (PackageKit non-requis).
+Le script utilise seulement des commandes dnf et, éventuellement, flatpak (PackageKit non-requis). Le script gère maintenant les paquets rust installés via cargo (crates.io).
 
 Les erreurs de vérifications et de téléchargements sont gérées.
 
@@ -97,6 +97,10 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 -   **-R, --norpm**
 
           La gestion des RPMs est désactivée,
+         
+-   **-A, --norust**
+
+          La gestion des paquets rust installés via cargo est désactivée,
 
 -   **-d, --direct**
 
@@ -120,32 +124,40 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 
 -   **-0, --nolog**
 
-          Les fichiers logs ne seront pas conservés.
+          Les fichiers logs ne seront pas conservés,
 
 -   **-D, --deletelog**
 
-          Tous les logs de fedupdate seront supprimés.
+          Tous les logs de fedupdate seront supprimés,
 
 -   **-4, --forcednf4**
 
-          la commande dnf4 sera utilisée en lieu et place de la commande dnf.
+          la commande dnf4 sera utilisée en lieu et place de la commande dnf,
 
 -   **-5, --forcednf5**
 
-          la commande dnf5 sera utilisée en lieu et place de la commande dnf.
+          la commande dnf5 sera utilisée en lieu et place de la commande dnf,
 
 -   **-L, --changelog**
 
-          La liste des modifications apportées par les mises à jour sera affichée (RPM uniquement).
+          La liste des modifications apportées par les mises à jour sera affichée (RPM uniquement),
 
 -   **-l, --limitlog**
 
-          Seuls les logs en cas de mise à jour sont conservés.
+          Seuls les logs en cas de mise à jour sont conservés,
 
 -   **-u, --distrupgrade**
 
-          Montée de version (de FC40 à FC41 par exemple).
+          Montée de version (de FC40 à FC41 par exemple),
 
+-   **-i, --interactive**
+          
+          Le mode interactif est activé (questions posées systématiquement),
+          
+-   **-I, --nointeractive**
+          
+          Le mode interactif est désactivé (pas de question, mode normal).
+          
 
 ## Notes importantes
 -   Le mode "contrôle de fonctionnement" (-C) va permettre de générer le fichier de configuration et de vérifier les dépendances du script.
@@ -185,6 +197,7 @@ Le script doit être lancé par un utilisateur normal disposant du droit d'élé
 -p, --poweroff
 -m, --notif_email
 -B, --nocacheupd
+-i, --interactive
 ```
 
 

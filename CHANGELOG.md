@@ -1,5 +1,15 @@
 # *CHANGELOG*
 
+## version 2.50
+
+- ajout mode interactif qui pose des questions systématiques (-i pour activer, -I pour désactiver si activé dans config.rc)
+
+- code cleanup
+
+- gestion des paquets rust installés via cargo 
+
+- bugs fixes (flatpak,...)
+
 ## version 2.22
 
 - ajout option -P (--nopoweroff) pour outrepasser l'option -p (--poweroff)
