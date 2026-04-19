@@ -11,7 +11,7 @@
 # https://www.gnu.org/licenses/gpl.html         #
 #################################################
 set -euo pipefail
-readonly ver=2.50
+readonly ver=2.51
 readonly cmdline="$*"
 readonly scriptfullname="$0"
 readonly scriptname="${0##*/}"
@@ -1467,6 +1467,7 @@ MANAGE-OPTIONS() { # management des options du script sélectionnées via la lig
         CECHO "[INFO]" "${vert}" -n
         echo -e " Date d'installation de ${ID^} (${gras}${host}${reset}) : ${italic}${datecreated}${reset} (il y a ${days_since_install} ${day})"
     fi
+
     CECHO "[INFO]" "${vert}" -n
     echo -e " Ligne de commande : ${gras}${bleu}${scriptfullname}${reset} ${gras}${vert}${cmdline}${reset}" | tee -a "${biglog}"
     echo >>"${biglog}"
@@ -1636,9 +1637,12 @@ MANAGE-OPTIONS() { # management des options du script sélectionnées via la lig
     dnfver="$(CHECK_DNF_VERSION || echo "unknown")"
     [[ "${norpm}" = "" ]] && INIT-LOGRPM
     echo -ne "${gris}"
+
     if [[ "${silent}" = "" ]]; then # en mode verbose j'affiche les données de traitement des options.
-        grep "^-" "${biglog}"
+        echo "${biglog}"
+        grep "^-" "${biglog}" || true
     fi
+
     CECHO "[INFO]" "${vert}" -n
     echo -en " Options retenues (arguments longs) : ${gras}${vert}" | tee -a "${biglog}"
     local opts
