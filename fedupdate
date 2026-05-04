@@ -11,7 +11,7 @@
 # https://www.gnu.org/licenses/gpl.html         #
 #################################################
 set -euo pipefail
-readonly ver=2.51
+readonly ver=2.54
 readonly cmdline="$*"
 readonly scriptfullname="$0"
 readonly scriptname="${0##*/}"
@@ -126,6 +126,7 @@ DNF_CACHEUPDCMD() { # création du cache
         { STOP-SPINNER && echo "terminée."; }
     else
         local tmp="${HOME}/.cache/file2.tmp"
+        touch "${tmp}"
         echo -e "${gris}"
         # shellcheck disable=SC2024
         sudo "${dnf}" makecache 2>&1 | tee "${tmp}" || true
@@ -275,7 +276,7 @@ DNF_CHECK_OFFLINE_UPGRADE_READY() {
     else
         dnf_file="/usr/lib/sysimage/libdnf5/offline/transaction.json"
     fi
-    if sudo ls "${dnf_file}" &>/dev/null; then # je teste la présence du fichier en root car ${USER} n'a pas les droits
+    if sudo test -f "${dnf_file}" &>/dev/null; then # je teste la présence du fichier en root car ${USER} n'a pas les droits
         return 0
     else
         return 1
@@ -293,9 +294,9 @@ EXISTS() {
 INTERACTIVE-INIT(){
     if [[ "${interactive}" = "yes" ]]; then
         echo ""
-        ASK-YESNO " Mode interactif: gestion des flatpak." "${surligne}${vert}" " Voulez-vous faire une mise à jour des flatpak (o/n) ? " "${surligne}${magenta}" "[INFO]" || noflatpak="yes" ; echo ""
-        ASK-YESNO " Mode interactif: gestion des paquets CARGO rust." "${surligne}${vert}" " Voulez-vous faire une mise à jour CARGO (o/n) ? " "${surligne}${magenta}" "[INFO]" || norust="yes" ; echo ""
-        ASK-YESNO " Mode interactif: gestion des RPM." "${surligne}${vert}" " Voulez-vous faire une mise à jour des RPM (o/n) ? " "${surligne}${magenta}" "[INFO]" || norpm="yes"
+        ASK-YESNO " Mode interactif: gestion des flatpak." "${surligne}${vert}" " Voulez-vous faire une mise à jour des flatpak" "${surligne}${magenta}" "[INFO]" || noflatpak="yes" ; echo ""
+        ASK-YESNO " Mode interactif: gestion des paquets CARGO rust." "${surligne}${vert}" " Voulez-vous faire une mise à jour CARGO" "${surligne}${magenta}" "[INFO]" || norust="yes" ; echo ""
+        ASK-YESNO " Mode interactif: gestion des RPM." "${surligne}${vert}" " Voulez-vous faire une mise à jour des RPM" "${surligne}${magenta}" "[INFO]" || norpm="yes"
     fi
 }
 ################################################################################################################################
@@ -322,11 +323,14 @@ HOSTNAME() {
 CHECK_DNF_VERSION() {
     local version_info=""
     version_info=$(${dnf} --version 2>/dev/null || echo "unknown")
-    if echo "${version_info}" | grep -q "4\."; then
+    if echo "${version_info}" | grep -q "^dnf5"; then
+        echo "dnf5"
+        return 0
+    elif echo "${version_info}" | grep -q "4\."; then
         echo "dnf4"
         return 0
-    elif echo "${version_info}" | grep -q "5\."; then
-        echo "dnf5"
+    elif echo "${version_info}" | grep -q "^dnf4"; then
+        echo "dnf4"
         return 0
     else
         echo "Unable to determine DNF version." >>"${bigerror}"
@@ -479,7 +483,7 @@ DECRYPT-PASS() {
 ################################################################################################################################
 CREATE-CONFIG() {
     local msg=${1} me
-    if ASK-YESNO "" "${vert}" " Voulez-vous en ${msg} un maintenant (o/n) ? " "${magenta}" ""; then
+    if ASK-YESNO "" "${vert}" " Voulez-vous en ${msg} un maintenant" "${magenta}" ""; then
         while true; do
             CECHO "[ACT.]" "${magenta}" -n
             echo -n " Merci de saisir une adresse email valide : "
@@ -494,7 +498,7 @@ CREATE-CONFIG() {
         echo -n " Merci de saisir le mot de passe de l'utilisateur ${me} : "
         PASSWORD_INPUT
         if EXISTS openssl; then
-            if ASK-YESNO "" "${vert}" " Voulez-vous stocker le mot de passe ${gras}chiffré${reset} (o/n) ? " "${magenta}" ""; then
+            if ASK-YESNO "" "${vert}" " Voulez-vous stocker le mot de passe ${gras}chiffré${reset}" "${magenta}" ""; then
                 if ENCRYPT-PASS; then
                     CECHO "[INFO]" "${vert}" -n
                     echo -e " Le mot de passe est stocké chiffré dans ${gras}${bleu}${passwordencrypted}${reset}."
@@ -800,14 +804,14 @@ ASK-YESNO() {
         fi
         echo -e "${colorinteractive}${message}${reset}"
 
-        while [[ "${input_string}" != "oui" ]] && [[ "${input_string}" != "o" ]] && [[ "${input_string}" != "non" ]] && [[ "${input_string}" != "n" ]]; do
+        while [[ "${input_string}" != "oui" ]] && [[ "${input_string}" != "o" ]] && [[ "${input_string}" != "" ]] && [[ "${input_string}" != "non" ]] && [[ "${input_string}" != "n" ]]; do
             CECHO "[ACT.]" "${color2}" -n
-            echo -en "${colorinteractive}${question}${reset}"
+            echo -en "${colorinteractive}${question} (O/n) ?${reset}"
             IFS= read -r input_string || input_string="non" # fallback in case of read error
             input_string="${input_string,,}"                # je passe tout en minuscules
         done
 
-        if [[ "${input_string}" = "oui" ]] || [[ "${input_string}" = "o" ]]; then # j'accepte oui, OUI, o, O, ...
+        if [[ "${input_string}" = "oui" ]] || [[ "${input_string}" = "o" ]] || [[ "${input_string}" = "" ]]; then # j'accepte oui, OUI, o, O, ... choix par défaut = oui
             return 0
         elif [[ "${input_string}" = "non" ]] || [[ "${input_string}" = "n" ]]; then # j'accepte non, NON, n, N, ...
             return 1
@@ -983,8 +987,8 @@ OFFLINE-UPGRADE() {
             echo "------------------------"
             echo -en "${reset}"
             echo
-            if ! ASK-YESNO "" "${vert}" " Voulez-vous continuer (o/n) ? " "${magenta}" ""; then
-                if ASK-YESNO " Redémarrage annulé par l'utilisateur... " "${vert}" " Voulez-vous supprimer les paquets téléchargés non installés (o/n) ? " "${magenta}" "[INFO]"; then
+            if ! ASK-YESNO "" "${vert}" " Voulez-vous continuer" "${magenta}" ""; then
+                if ASK-YESNO " Redémarrage annulé par l'utilisateur... " "${vert}" " Voulez-vous supprimer les paquets téléchargés non installés" "${magenta}" "[INFO]"; then
                     DNF_OFF-CLEANCMD
                     CECHO "[INFO]" "${vert}" -n
                     echo " Tous les paquets du cache de mise à jour hors-ligne ont été effacés."
@@ -1001,9 +1005,9 @@ OFFLINE-UPGRADE() {
             fi
         fi
     fi
-    if ASK-YESNO " Le script va maintenant redémarrer le système et faire la mise à jour hors-ligne." "${surligne}${vert}" " Êtes-vous d'accord (o/n) ? " "${surligne}${magenta}" "[INFO]"; then
+    if ASK-YESNO " Le script va maintenant redémarrer le système et faire la mise à jour hors-ligne." "${surligne}${vert}" " Êtes-vous d'accord" "${surligne}${magenta}" "[INFO]"; then
         poweroff="no"
-        if [[ "${interactive}" = "yes" ]] && ASK-YESNO " Éteint-on l'ordinateur après la mise à jour hors-ligne ?" "${surligne}${vert}" "(o/n) ?" "${surligne}${magenta}" "[ACT.]"; then
+        if [[ "${interactive}" = "yes" ]] && ASK-YESNO " Après la mise à jour hors-ligne..." "${surligne}${vert}" " Éteint-on l'ordinateur" "${surligne}${magenta}" "[INFO]"; then
             poweroff="yes"
         fi
         echo
@@ -1032,7 +1036,7 @@ OFFLINE-UPGRADE() {
             exit 1
         fi
     else
-        if ASK-YESNO " Redémarrage annulé par l'utilisateur... " "${vert}" " Voulez-vous supprimer les paquets téléchargés non installés (o/n) ? " "${magenta}" "[INFO]"; then
+        if ASK-YESNO " Redémarrage annulé par l'utilisateur... " "${vert}" " Voulez-vous supprimer les paquets téléchargés non installés" "${magenta}" "[INFO]"; then
             DNF_OFF-CLEANCMD
             CECHO "[INFO]" "${vert}" -n
             echo " Tous les paquets du cache de mise à jour hors-ligne ont été effacés."
@@ -1142,7 +1146,7 @@ DISTRO-UPGRADE() {
     VERSION_PLUS=$((VERSION_ID + 1))
     CECHO "[INFO]" "${vert}" -n
     echo -e " Montée en version de ${gras}${host}${reset} de la version ${gras}${jaune}${VERSION}${reset} vers la version ${gras}${jaune}${VERSION_PLUS}${reset}."
-    if ! ASK-YESNO " Validez-vous la version cible (${VERSION_PLUS}) ? " "${magenta}" " oui / non : " "${magenta}" "[ACT.]"; then
+    if ! ASK-YESNO " Validez-vous la version cible (${VERSION_PLUS}) ? " "${magenta}" "" "${magenta}" "[ACT.]"; then
         CECHO "[INFO]" "${vert}" -n
         echo -e "${gras} Montée en version annulée par l'utilisateur.${reset}"
         return 0
@@ -1158,12 +1162,12 @@ DISTRO-UPGRADE() {
         ${bat} "${logerror}"
         echo "------------------------"
         echo -en "${reset}"
-        if ! ASK-YESNO "" "${vert}" " Voulez-vous continuer (o/n) ? " "${magenta}" ""; then
+        if ! ASK-YESNO "" "${vert}" " Voulez-vous continuer" "${magenta}" ""; then
             END "des erreurs"
             exit 1
         fi
     fi
-    if ASK-YESNO " Le script va maintenant redémarrer le système et faire la mise à jour hors-ligne." "${vert}" " Êtes-vous d'accord (o/n) ? " "${magenta}" "[INFO]"; then
+    if ASK-YESNO " Le script va maintenant redémarrer le système et faire la mise à jour hors-ligne." "${vert}" " Êtes-vous d'accord" "${magenta}" "[INFO]"; then
         echo
         CECHO "[INFO]" "${vert}" -n
         echo " L'ordinateur va redémarrer dans ${delay}s :"
@@ -1187,7 +1191,7 @@ DISTRO-UPGRADE() {
             exit 1
         fi
     else
-        if ASK-YESNO " Redémarrage annulé par l'utilisateur... " "${vert}" " Voulez-vous supprimer les paquets téléchargés non installés (o/n) ? " "${magenta}" "[INFO]"; then
+        if ASK-YESNO " Redémarrage annulé par l'utilisateur... " "${vert}" " Voulez-vous supprimer les paquets téléchargés non installés" "${magenta}" "[INFO]"; then
             DNF_UPGRADE-CLEANCMD
             CECHO "[INFO]" "${vert}" -n
             echo " Tous les paquets du cache de mise à jour hors-ligne ont été effacés."
@@ -1205,7 +1209,7 @@ DISTRO-UPGRADE() {
 ################################################################################################################################
 CHECKRPM() {
     listtmp="${HOME}/.cache/list.tmp"
-    if [[ "${interactive}" = "yes" ]] && ! ASK-YESNO " Mode interactif: cache des métadonnées." "${surligne}${vert}" " Voulez-vous faire une mise à jour du cache des métadonnées (o/n) ? " "${surligne}${magenta}" "[INFO]"; then
+    if [[ "${interactive}" = "yes" ]] && ! ASK-YESNO " Mode interactif: cache des métadonnées." "${surligne}${vert}" " Voulez-vous faire une mise à jour du cache des métadonnées" "${surligne}${magenta}" "[INFO]"; then
         nocacheupd="yes"
     fi
     [[ "${interactive}" = "yes" ]] && echo ""
@@ -1237,7 +1241,7 @@ CHECKRPM() {
             echo "------------------------"
             echo -en "${reset}"
             echo
-            if ! ASK-YESNO "" "${vert}" " Voulez-vous continuer (o/n) ? " "${magenta}" ""; then
+            if ! ASK-YESNO "" "${vert}" " Voulez-vous continuer" "${magenta}" ""; then
                 END "des erreurs"
                 exit 1
             fi
@@ -1260,7 +1264,7 @@ MANAGE-RPM() {
         fi
         if [[ -z "${checkonly}" ]]; then # mode normal
             [[ "${interactive}" = "yes" ]] && echo ""
-            if [[ "${interactive}" = "yes" ]] && ASK-YESNO " Mode interactif: type de mise à jour." "${surligne}${vert}" " Voulez-vous faire une mise à jour directe (o/n) ? " "${surligne}${magenta}" "[INFO]"; then
+            if [[ "${interactive}" = "yes" ]] && ASK-YESNO " Mode interactif: type de mise à jour." "${surligne}${vert}" " Voulez-vous faire une mise à jour directe" "${surligne}${magenta}" "[INFO]"; then
                     directrpms="yes"
                     echo ""
             fi
