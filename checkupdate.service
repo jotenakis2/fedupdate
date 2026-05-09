@@ -4,7 +4,6 @@ After=graphical-session.target network-online.target
 Wants=network-online.target
 
 [Service]
-Environment=PATH=%h/.local/bin:%h/.cargo/bin:/usr/local/bin:/usr/bin:/bin
 ExecStart=/usr/local/bin/fedupdate -cn0I
 Type=oneshot
 
