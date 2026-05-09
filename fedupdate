@@ -11,7 +11,7 @@
 # https://www.gnu.org/licenses/gpl.html         #
 #################################################
 set -euo pipefail
-readonly ver=2.54
+readonly ver=2.55
 readonly cmdline="$*"
 readonly scriptfullname="$0"
 readonly scriptname="${0##*/}"
@@ -125,8 +125,9 @@ DNF_CACHEUPDCMD() { # création du cache
         sudo "${dnf}" makecache -q >>"${log}" 2>>"${logerror}" || true
         { STOP-SPINNER && echo "terminée."; }
     else
-        local tmp="${HOME}/.cache/file2.tmp"
-        touch "${tmp}"
+        local tmp
+        tmp="${HOME}/.cache/file2.tmp"
+        true > "${tmp}"
         echo -e "${gris}"
         # shellcheck disable=SC2024
         sudo "${dnf}" makecache 2>&1 | tee "${tmp}" || true
