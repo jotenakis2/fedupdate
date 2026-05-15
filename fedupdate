@@ -11,7 +11,7 @@
 # https://www.gnu.org/licenses/gpl.html         #
 #################################################
 set -euo pipefail
-readonly ver=2.55
+readonly ver=2.56
 readonly cmdline="$*"
 readonly scriptfullname="$0"
 readonly scriptname="${0##*/}"
@@ -1644,20 +1644,22 @@ MANAGE-OPTIONS() { # management des options du script sélectionnées via la lig
     echo -ne "${gris}"
 
     if [[ "${silent}" = "" ]]; then # en mode verbose j'affiche les données de traitement des options.
-        echo "${biglog}"
+        #echo "${biglog}"
         grep "^-" "${biglog}" || true
     fi
 
-    CECHO "[INFO]" "${vert}" -n
-    echo -en " Options retenues (arguments longs) : ${gras}${vert}" | tee -a "${biglog}"
-    local opts
+    local opts allopts=""
     for opts in silent verbose help checkonly notif_email nomail notif noflatpak norpm norust nolog checkdeps directrpms nocacheupd \
         forcecacheupd poweroff nopoweroff changelog forcednf4 forcednf5 distrupgrade limitlog deletelog interactive; do
         if [[ "${!opts}" = "yes" ]]; then
-            echo -n "--${opts} " | tee -a "${biglog}"
+            allopts="--${opts} ${allopts}"
+            #echo -n "--${opts} " | tee -a "${biglog}"
         fi
     done
-    echo -e "${reset}" | tee -a "${biglog}"
+    if [[ "${allopts}" != "" ]]; then
+        CECHO "[INFO]" "${vert}" -n
+        echo -e " Options retenues (arguments longs) : ${gras}${vert}${allopts}${reset}" | tee -a "${biglog}"
+    fi
     #----------------------------------
 
     return 0
