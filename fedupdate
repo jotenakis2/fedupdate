@@ -5,13 +5,14 @@
 # CHANGELOG 2.40 : mode interactif, viewer update, add PATH in checkupdate.service
 # correction erreur si un paquet flatpak manque.
 # CHANGELOG 2.50 : amélio mode interactif.
+# 2.58 : cargo binstall
 #################################################
 # Copyright OLIVIER LORILLU                     #
 # ce script est sous license GPL                #
 # https://www.gnu.org/licenses/gpl.html         #
 #################################################
 set -euo pipefail
-readonly ver=2.56
+readonly ver=2.58
 readonly cmdline="$*"
 readonly scriptfullname="$0"
 readonly scriptname="${0##*/}"
@@ -51,14 +52,31 @@ RUST_CHECKUPDCMD() {
 }
 #-------------------------------------------------------------------------------------------
 RUST_UPDCMD() {
-    if [[ "${silent}" = "yes" ]]; then
-        { trap STOP-SPINNER EXIT && START-SPINNER; }
-        cargo install-update -a >>"${logRust}" 2>>"${logerrorRust}" || true
-        { STOP-SPINNER && echo "terminée."; }
+    if EXISTS cargo-binstall; then
+        local crate
+        if [[ "${silent}" = "yes" ]]; then
+            { trap STOP-SPINNER EXIT && START-SPINNER; }
+            while read -r crate ; do
+                cargo binstall "${crate}" -y >>"${logRust}" 2>>"${logerrorRust}" || true
+            done < "${listRust}"
+            { STOP-SPINNER && echo "terminée."; }
+        else
+            echo -e "${gris}"
+            while read -r crate ; do
+                cargo binstall "${crate}" -y > >(tee -a "${logRust}") 2> >(tee -a "${logerrorRust}" >&2) || true
+            done < "${listRust}"
+            echo -ne "${reset}"
+        fi
     else
-        echo -e "${gris}"
-        cargo install-update -a > >(tee -a "${logRust}") 2> >(tee -a "${logerrorRust}" >&2) || true
-        echo -ne "${reset}"
+        if [[ "${silent}" = "yes" ]]; then
+            { trap STOP-SPINNER EXIT && START-SPINNER; }
+            cargo install-update -a >>"${logRust}" 2>>"${logerrorRust}" || true
+            { STOP-SPINNER && echo "terminée."; }
+        else
+            echo -e "${gris}"
+            cargo install-update -a > >(tee -a "${logRust}") 2> >(tee -a "${logerrorRust}" >&2) || true
+            echo -ne "${reset}"
+        fi
     fi
     return 0
 }
@@ -164,8 +182,10 @@ DNF_CHECKUPDCMD() { # vérification de la présence de mise à jour
         fi
         echo -ne "${reset}"
     fi
-    sed -i '/.*|.*|.*|.*/d;/passage de paquets en obsolètes/d;/Obsoleting Packages/d;/^$/d' "${listtmp}"
-    sed '/^Changelogs/ {x;p;x}' "${listtmp}" >>"${log}"
+    #sed -i '/.*|.*|.*|.*/d;/passage de paquets en obsolètes/d;/Obsoleting Packages/d;/^$/d;/^Upgrades/d' "${listtmp}"
+    sed -i '/^Upgrades/d;/^$/d' "${listtmp}" # je vire la ligne commençant par Upgrades et les lignes vides
+    #sed '/^Changelogs/ {x;p;x}' "${listtmp}" >>"${log}" # je ne comprends plus !
+    cat "${listtmp}" >>"${log}"
     return 0
 }
 #-------------------------------------------------------------------------------------------
@@ -1228,7 +1248,7 @@ CHECKRPM() {
         ${bat} "${listtmp}"
     fi
     awk '/^Changelogs/ {exit} {if (NF > 0) printf "  %-45s %-7s\n", $1, $2}' "${listtmp}" >"${list}"
-    rm -f "${listtmp}"
+    #rm -f "${listtmp}"
     unset listtmp
     # Check for errors and output results
     if [[ -s "${logerror}" ]]; then
