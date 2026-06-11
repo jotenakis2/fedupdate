@@ -12,7 +12,7 @@
 # https://www.gnu.org/licenses/gpl.html         #
 #################################################
 set -euo pipefail
-readonly ver=2.58
+readonly ver=2.59
 readonly cmdline="$*"
 readonly scriptfullname="$0"
 readonly scriptname="${0##*/}"
@@ -1356,42 +1356,44 @@ MANAGE-Rust() {
             ${bat} "${logerrorRust}"
             echo "------------------------"
             echo -en "${reset}"
-            echo
-        else
-            if [[ -s "${listRust}" ]]; then # fichier non vide donc il y a des maj
-                existupdateRust="yes"
-                # Display logs based on `silent` mode
-                if [[ -n "${silent}" ]]; then
-                    ${bat} "${listRust}"
-                fi
-                if [[ -z "${checkonly}" ]]; then
-                    # Download and install updates
-                    CECHO "[INFO]" "${vert}" -n
-                    echo -n " Mise à jour des paquets "
-                    RUST_UPDCMD
-                    # Check for errors during the update process
-                    if [[ -s "${logerrorRust}" ]]; then
-                        if grep -iqE "${pattern_error}" "${logerrorRust}"; then # je check un pattern car cargo remplit le fichier error sans raison... (2> est mal géré)
-                            CECHO "[ERR.]" "${rouge}" -n
-                            echo " La mise à jour a rencontré des erreurs : "
-                            echo -ne "${gris}"
-                            echo "------------------------"
-                            ${bat} "${logerrorRust}"
-                            echo "------------------------"
-                            echo -en "${reset}"
-                            echo
-                        fi
-                    fi
-                else # Mode checkonly
-                    CECHO "[INFO]" "${vert}" -n
-                    echo " Des mises à jour sont disponibles."
-                    [[ "${notif}" = "yes" ]] && NOTIFY "RUST" "${listRust}"
-                    [[ "${notif_email}" = "yes" ]] && emailfpk="yes" # l'envoie email se fera après dans la function GESTION-RPM
-                fi
-            else
-                CECHO "[INFO]" "${vert}" -n
-                echo -e " ${gras}Votre système (${host}) est déjà à jour.${reset}"
+            if ! ASK-YESNO "" "${vert}" " Voulez-vous continuer" "${magenta}" ""; then
+                return 0
             fi
+        fi
+
+        if [[ -s "${listRust}" ]]; then # fichier non vide donc il y a des maj
+            existupdateRust="yes"
+            # Display logs based on `silent` mode
+            if [[ -n "${silent}" ]]; then
+                ${bat} "${listRust}"
+            fi
+            if [[ -z "${checkonly}" ]]; then
+                # Download and install updates
+                CECHO "[INFO]" "${vert}" -n
+                echo -n " Mise à jour des paquets "
+                RUST_UPDCMD
+                # Check for errors during the update process
+                if [[ -s "${logerrorRust}" ]]; then
+                    if grep -iqE "${pattern_error}" "${logerrorRust}"; then # je check un pattern car cargo remplit le fichier error sans raison... (2> est mal géré)
+                        CECHO "[ERR.]" "${rouge}" -n
+                        echo " La mise à jour a rencontré des erreurs : "
+                        echo -ne "${gris}"
+                        echo "------------------------"
+                        ${bat} "${logerrorRust}"
+                        echo "------------------------"
+                        echo -en "${reset}"
+                        echo
+                    fi
+                fi
+            else # Mode checkonly
+                CECHO "[INFO]" "${vert}" -n
+                echo " Des mises à jour sont disponibles."
+                [[ "${notif}" = "yes" ]] && NOTIFY "RUST" "${listRust}"
+                [[ "${notif_email}" = "yes" ]] && emailfpk="yes" # l'envoie email se fera après dans la function GESTION-RPM
+            fi
+        else
+            CECHO "[INFO]" "${vert}" -n
+            echo -e " ${gras}Votre système (${host}) est déjà à jour.${reset}"
         fi
     else
         echo
